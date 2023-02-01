@@ -1,0 +1,24 @@
+[package]
+name = "team-event-picker"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread"] }
+axum = { version = "0.6.4", features = ["tower-log"] }
+hyper = "0.14.23"
+
+# Axum builds on the types in Tower
+tower = "0.4.11"
+tower-http = { version = "0.3.5", features = ["trace"] }
+
+clap = { version = "4.1.4", features = ["derive", "env"] }
+serde = { version = "1.0.152", features = ["derive"] }
+
+# Utility crates
+anyhow = "1.0.68"
+dotenv = "0.15.0"
+env_logger = "0.10.0"
+log = "0.4.17"
