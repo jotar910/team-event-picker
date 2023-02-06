@@ -1,0 +1,335 @@
+openapi: 3.0.3
+info:
+  title: Team Event Picker
+  description: |-
+    This is the API definition of Team Event Picker.
+  contact:
+    email: jro@container-xchange.com
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 0.0.1
+servers:
+  - url: http://localhost:3000/api/v1
+tags:
+  - name: channels
+    description: Everything about channels
+  - name: events
+    description: Operations for the events in a particular channel
+  - name: participants
+    description: Operations for the participants of events
+  - name: commands
+    description: All the commands available for usage
+paths:
+  "/channels":
+    get:
+      tags:
+        - channels
+      summary: Get all the existing channels
+      description: Returns all the channels that already been used
+      operationId: getChannels
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChannelList"
+
+  "/channels/{channelName}/events":
+    parameters:
+      - name: channelName
+        in: path
+        description: The channel identifier
+        required: true
+        schema:
+          type: string
+    get:
+      tags:
+        - events
+      summary: Get all the existing events on a channel
+      description: Returns a list of all the events that exists in a given channel
+      operationId: getChannelEvents
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventList"
+        "404":
+          description: Resource not found
+    post:
+      tags:
+        - events
+      summary: Create new event on a channel
+      description: Create a new event on a channel
+      operationId: createChannelEvent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Event"
+      responses:
+        "201":
+          description: Successful operation
+        "404":
+          description: Resource not found
+        "409":
+          description: Resource already exists
+
+  "/channels/{channelName}/events/{eventId}":
+    parameters:
+      - name: channelName
+        in: path
+        description: The channel identifier
+        required: true
+        schema:
+          type: string
+      - name: eventId
+        in: path
+        description: The event identifier
+        required: true
+        schema:
+          type: number
+    put:
+      tags:
+        - events
+      summary: Update event on a channel
+      description: Updates data for an event on a channel
+      operationId: putChannelEvent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Event"
+      responses:
+        "200":
+          description: Successful operation
+        "404":
+          description: Resource not found
+    delete:
+      tags:
+        - events
+      summary: Deletes event on a channel
+      description: Deletes an event on a channel
+      operationId: deleteChannelEvent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Event"
+      responses:
+        "200":
+          description: Successful operation
+        "404":
+          description: Resource not found
+
+  "/channels/{channelName}/events/{eventId}/participants":
+    parameters:
+      - name: channelName
+        in: path
+        description: The channel identifier
+        required: true
+        schema:
+          type: string
+      - name: eventId
+        in: path
+        description: The event identifier
+        required: true
+        schema:
+          type: number
+    patch:
+      tags:
+        - participants
+      summary: Update participants of an event on a channel
+      description: Add or edit participants for an event on a channel
+      operationId: patchChannelEventParticipants
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParticipantList"
+      responses:
+        "200":
+          description: Successful operation
+        "404":
+          description: Resource not found
+    delete:
+      tags:
+        - participants
+      summary: Deletes participants of an event on a channel
+      description: Delete participants for an event on a channel
+      operationId: deleteChannelEventParticipants
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParticipantList"
+      responses:
+        "200":
+          description: Successful operation
+        "404":
+          description: Resource not found
+
+  "/channels/{channelName}/events/{eventId}/pick":
+    parameters:
+      - name: channelName
+        in: path
+        description: The channel identifier
+        required: true
+        schema:
+          type: string
+      - name: eventId
+        in: path
+        description: The event identifier
+        required: true
+        schema:
+          type: number
+    patch:
+      tags:
+        - commands
+      summary: Randomly picks a participant from an event
+      description: Picks a random participant from an event
+      operationId: pickRandomChannelEventParticipant
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Participant"
+      responses:
+        "200":
+          description: Successful operation
+        "404":
+          description: Resource not found
+
+  "/channels/{channelName}/events/{eventId}/pick/{participantId}":
+    parameters:
+      - name: channelName
+        in: path
+        description: The channel identifier
+        required: true
+        schema:
+          type: string
+      - name: eventId
+        in: path
+        description: The event identifier
+        required: true
+        schema:
+          type: number
+      - name: participantId
+        in: path
+        description: The participant identifier
+        required: true
+        schema:
+          type: number
+    patch:
+      tags:
+        - commands
+      summary: Picks a participant from an event
+      description: Picks the provided participant from an event
+      operationId: pickChannelEventParticipant
+      responses:
+        "200":
+          description: Successful operation
+        "404":
+          description: Resource not found
+        "409":
+          description: Already picked
+
+  "/channels/{channelName}/events/{eventId}/retry":
+    parameters:
+      - name: channelName
+        in: path
+        description: The channel identifier
+        required: true
+        schema:
+          type: string
+      - name: eventId
+        in: path
+        description: The event identifier
+        required: true
+        schema:
+          type: number
+    patch:
+      tags:
+        - commands
+      summary: Retries to pick randomly a new participant from an event
+      description: Undo last pick action and picks a random participant from an event again
+      operationId: pickRetryChannelEventParticipant
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Participant"
+      responses:
+        "200":
+          description: Successful operation
+        "404":
+          description: Resource not found
+
+components:
+  schemas:
+    ChannelItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 10
+        name:
+          type: string
+          example: inventory-devs
+    ChannelList:
+      type: array
+      items:
+        $ref: "#/components/schemas/ChannelItem"
+    EventItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 10
+        name:
+          type: string
+          example: "Daily Meeting"
+        date:
+          type: integer
+          format: date-time
+          example: "2001-01-01T01:00:00.000Z"
+        repeat:
+          type: string
+          description: Event repeat
+          example: daily
+          enum:
+            - none
+            - daily
+            - weekly
+            - weekly_two
+            - monthly
+            - yearly
+    EventList:
+      type: array
+      items:
+        $ref: "#/components/schemas/EventItem"
+    Event:
+      allOf:
+        - $ref: "#/components/schemas/EventItem"
+        - type: object
+          properties:
+            participants:
+              $ref: "#/components/schemas/ParticipantList"
+    Participant:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "João"
+        picked:
+          type: boolean
+          example: false
+    ParticipantList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Participant"
