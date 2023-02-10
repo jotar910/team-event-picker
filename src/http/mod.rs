@@ -18,8 +18,9 @@ pub async fn serve(config: Config) -> Result<()> {
     info!("Listening on port {}", config.port);
 
     Server::bind(&format!("0.0.0.0:{}", config.port).parse().unwrap())
-        .serve(app
-            .with_state(Arc::new(AppState { config }))
-            .into_make_service())
+        .serve(
+            app.with_state(Arc::new(AppState { config }))
+                .into_make_service(),
+        )
         .await
 }
