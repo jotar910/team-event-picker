@@ -1,9 +1,10 @@
+#[derive(Clone)]
 pub struct Event {
     pub id: u32,
     pub name: String,
     pub date: String,
     pub repeat: RepeatPeriod,
-    pub participants: Vec<Participant>,
+    pub participants: Vec<u32>,
 }
 
 pub struct EventCreation {
@@ -13,11 +14,13 @@ pub struct EventCreation {
     pub participants: Vec<String>,
 }
 
+#[derive(Clone, PartialEq)]
 pub struct Participant {
     pub id: u32,
     pub name: String,
 }
 
+#[derive(Clone)]
 pub enum RepeatPeriod {
     None,
     Daily,

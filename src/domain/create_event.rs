@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use crate::repository::event::InsertError;
 use crate::repository::event::Repository;
 
-use super::entities::EventCreation;
-use super::entities::RepeatPeriod;
+use super::entities::{Event, EventCreation, RepeatPeriod};
 
 pub struct Request {
     pub name: String,
@@ -45,10 +45,13 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
     };
     let tx = repo.transition();
     match repo.insert(creation_data) {
-        Ok(id) =>     Ok(Response { id }),
-        _ => {
+        Ok(Event { id, .. }) => Ok(Response { id }),
+        Err(err) => {
             tx.rollback();
-            Err(Error::Unknown)
+            Err(match err {
+                InsertError::Conflict => Error::Conflict,
+                _ => Error::Unknown,
+            })
         }
     }
 }
