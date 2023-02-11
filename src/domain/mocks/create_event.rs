@@ -1,4 +1,4 @@
-use super::Request;
+use crate::domain::create_event::Request;
 
 pub fn mock_request() -> Request {
     Request {

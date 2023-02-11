@@ -14,13 +14,13 @@ pub struct EventCreation {
     pub participants: Vec<String>,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Participant {
     pub id: u32,
     pub name: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum RepeatPeriod {
     None,
     Daily,
