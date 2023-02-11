@@ -1,12 +1,18 @@
 use std::borrow::BorrowMut;
+use std::collections::HashSet;
 use std::sync::Mutex;
 use std::{collections::HashMap, sync::MutexGuard};
+
+use itertools::Itertools;
 
 use crate::domain::entities::{Event, EventCreation, Participant};
 
 #[derive(Debug, PartialEq)]
 pub enum FindError {
     NotFound,
+    Unknown,
+}
+pub enum FindAllError {
     Unknown,
 }
 
@@ -23,8 +29,11 @@ pub trait Transition: Drop {
 
 pub trait Repository: Send + Sync {
     fn transition(&self) -> Box<dyn Transition>;
+
     fn find(&self, id: u32) -> Result<Event, FindError>;
     fn insert(&self, event_data: EventCreation) -> Result<Event, InsertError>;
+
+    fn find_participants(&self, ids: Vec<u32>) -> Result<Vec<Participant>, FindAllError>;
 }
 
 pub struct InMemoryRepository {
@@ -53,7 +62,8 @@ impl InMemoryRepository {
 
         let start_id = lock.len() as u32;
         let mut add_participants: Vec<Participant> = vec![];
-        for (name, participant) in participants.iter() {
+        for name in names.iter().unique() {
+            let participant = participants.get(name).unwrap();
             if let None = participant {
                 add_participants.push(Participant {
                     id: start_id + add_participants.len() as u32,
@@ -138,6 +148,28 @@ impl Repository for InMemoryRepository {
 
         Ok(event)
     }
+
+    fn find_participants(&self, ids: Vec<u32>) -> Result<Vec<Participant>, FindAllError> {
+        let lock = match self.participants.lock() {
+            Ok(lock) => lock,
+            _ => return Err(FindAllError::Unknown),
+        };
+
+        let ids_set: HashSet<&u32> = ids.iter().collect();
+
+        let existing_participants: Vec<Participant> = lock
+            .iter()
+            .filter(|participant| ids_set.contains(&participant.id))
+            .map(|participant| participant.clone())
+            .collect();
+
+        let participants = ids
+            .into_iter()
+            .filter_map(|key| existing_participants.iter().find(|participant| participant.id == key)).cloned()
+            .collect();
+
+        Ok(participants)
+    }
 }
 
 pub struct InMemoryTransaction {}
@@ -188,10 +220,7 @@ mod tests {
         let result = repo.insert(mocks::mock_event_creation());
 
         match result {
-            Ok(Event { participants, .. }) => {
-                assert_eq!(participants.contains(&0), true);
-                assert_eq!(participants.contains(&1), true);
-            }
+            Ok(Event { participants, .. }) => assert_eq!(participants, vec![0, 1]),
             _ => unreachable!(),
         }
     }
@@ -252,13 +281,48 @@ mod tests {
         if let Err(_) = result {
             unreachable!("event must be created")
         }
-        
+
         // Testing find here ---
 
         let result = repo.find(1);
 
         match result {
-            Ok(Event{id, ..}) => assert_eq!(id, 1),
+            Ok(Event { id, .. }) => assert_eq!(id, 1),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn it_should_find_participants_that_have_the_same_ids_as_the_provided() {
+        let repo = InMemoryRepository::new();
+
+        let mut mock = mocks::mock_event_creation();
+        mock.participants.push("Francisca".to_string());
+        mock.participants.push("Simão".to_string());
+        let result = repo.insert(mock);
+
+        if let Err(_) = result {
+            unreachable!("event must be created")
+        }
+
+        // Testing find_participants here ---
+
+        let result = repo.find_participants(vec![1, 2]);
+
+        match result {
+            Ok(participants) => assert_eq!(
+                participants,
+                vec![
+                    Participant {
+                        id: 1,
+                        name: "Joana".to_string()
+                    },
+                    Participant {
+                        id: 2,
+                        name: "Francisca".to_string()
+                    }
+                ]
+            ),
             _ => unreachable!(),
         }
     }
