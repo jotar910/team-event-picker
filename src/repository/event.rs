@@ -4,6 +4,12 @@ use std::{collections::HashMap, sync::MutexGuard};
 
 use crate::domain::entities::{Event, EventCreation, Participant};
 
+#[derive(Debug, PartialEq)]
+pub enum FindError {
+    NotFound,
+    Unknown,
+}
+
 pub enum InsertError {
     Conflict,
     Unknown,
@@ -17,6 +23,7 @@ pub trait Transition: Drop {
 
 pub trait Repository: Send + Sync {
     fn transition(&self) -> Box<dyn Transition>;
+    fn find(&self, id: u32) -> Result<Event, FindError>;
     fn insert(&self, event_data: EventCreation) -> Result<Event, InsertError>;
 }
 
@@ -101,6 +108,17 @@ impl Repository for InMemoryRepository {
         Box::new(InMemoryTransaction::new())
     }
 
+    fn find(&self, id: u32) -> Result<Event, FindError> {
+        let lock = match self.events.lock() {
+            Ok(lock) => lock,
+            _ => return Err(FindError::Unknown),
+        };
+        match lock.get(id as usize) {
+            Some(event) => Ok(event.clone()),
+            _ => Err(FindError::NotFound),
+        }
+    }
+
     fn insert(&self, event_data: EventCreation) -> Result<Event, InsertError> {
         let mut lock = match self.events.lock() {
             Ok(lock) => lock,
@@ -173,7 +191,7 @@ mod tests {
             Ok(Event { participants, .. }) => {
                 assert_eq!(participants.contains(&0), true);
                 assert_eq!(participants.contains(&1), true);
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -184,7 +202,6 @@ mod tests {
 
         let mut creation = mocks::mock_event_creation();
         creation.participants[0] = "Joana".to_string();
-        
 
         let result = repo.insert(creation);
 
@@ -201,6 +218,47 @@ mod tests {
 
         match result {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![1, 0]),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn it_should_return_not_found_error_when_find_event_does_not_exist() {
+        let repo = InMemoryRepository::new();
+
+        let result = repo.find(0);
+
+        match result {
+            Err(err) => assert_eq!(err, FindError::NotFound),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn it_should_return_the_event_when_find_is_called_with_a_existing_id() {
+        let repo = InMemoryRepository::new();
+
+        let mock = mocks::mock_event_creation();
+        let result = repo.insert(mock);
+
+        if let Err(_) = result {
+            unreachable!("event must be created")
+        }
+
+        let mut mock = mocks::mock_event_creation();
+        mock.name += " 2";
+        let result = repo.insert(mock);
+
+        if let Err(_) = result {
+            unreachable!("event must be created")
+        }
+        
+        // Testing find here ---
+
+        let result = repo.find(1);
+
+        match result {
+            Ok(Event{id, ..}) => assert_eq!(id, 1),
             _ => unreachable!(),
         }
     }
