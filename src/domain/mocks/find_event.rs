@@ -1,4 +1,4 @@
-use super::Participant;
+use super::User;
 use crate::domain::find_event::Response;
 
 pub fn mock_find_event_response() -> Response {
@@ -12,7 +12,7 @@ pub fn mock_find_event_response() -> Response {
             .participants
             .iter()
             .enumerate()
-            .map(|(i, participant)| Participant {
+            .map(|(i, participant)| User {
                 id: i as u32,
                 name: participant.to_string(),
             })

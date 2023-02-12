@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::domain::entities::{Participant, RepeatPeriod};
+use crate::domain::entities::{User, RepeatPeriod};
 use crate::repository::event::{FindAllError, FindError, Repository};
 
 #[derive(Debug, PartialEq)]
@@ -18,7 +18,7 @@ pub struct Response {
     pub name: String,
     pub date: String,
     pub repeat: RepeatPeriod,
-    pub participants: Vec<Participant>,
+    pub participants: Vec<User>,
 }
 
 pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
@@ -37,7 +37,7 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
         date: event.date,
         repeat: event.repeat,
         participants: repo
-            .find_participants(event.participants)
+            .find_users(event.participants)
             .map_err(|error| match error {
                 FindAllError::Unknown => Error::Unknown,
             })?,

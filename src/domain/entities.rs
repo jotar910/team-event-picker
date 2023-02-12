@@ -16,7 +16,7 @@ pub struct EventCreation {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Participant {
+pub struct User {
     pub id: u32,
     pub name: String,
 }

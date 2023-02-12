@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::MutexGuard};
 
 use itertools::Itertools;
 
-use crate::domain::entities::{Event, EventCreation, Participant};
+use crate::domain::entities::{Event, EventCreation, User};
 
 #[derive(Debug, PartialEq)]
 pub enum FindError {
@@ -34,79 +34,79 @@ pub trait Repository: Send + Sync {
     fn find(&self, id: u32) -> Result<Event, FindError>;
     fn insert(&self, event_data: EventCreation) -> Result<Event, InsertError>;
 
-    fn find_participants(&self, ids: Vec<u32>) -> Result<Vec<Participant>, FindAllError>;
+    fn find_users(&self, ids: Vec<u32>) -> Result<Vec<User>, FindAllError>;
 }
 
 pub struct InMemoryRepository {
     events: Mutex<Vec<Event>>,
-    participants: Mutex<Vec<Participant>>,
+    users: Mutex<Vec<User>>,
 }
 
 impl InMemoryRepository {
     pub fn new() -> InMemoryRepository {
         InMemoryRepository {
             events: Mutex::new(vec![]),
-            participants: Mutex::new(vec![]),
+            users: Mutex::new(vec![]),
         }
     }
 
-    fn insert_participants(&self, names: Vec<String>) -> Result<Vec<u32>, InsertError> {
-        let mut participants: HashMap<String, Option<Participant>> =
+    fn insert_users(&self, names: Vec<String>) -> Result<Vec<u32>, InsertError> {
+        let mut users: HashMap<String, Option<User>> =
             names.iter().map(|name| (name.clone(), None)).collect();
 
-        self.fill_with_existing_participants(participants.borrow_mut())?;
+        self.fill_with_existing_users(users.borrow_mut())?;
 
-        let mut lock: MutexGuard<Vec<Participant>> = match self.participants.lock() {
+        let mut lock: MutexGuard<Vec<User>> = match self.users.lock() {
             Ok(lock) => lock,
             _ => return Err(InsertError::Unknown),
         };
 
         let start_id = lock.len() as u32;
-        let mut add_participants: Vec<Participant> = vec![];
+        let mut add_users: Vec<User> = vec![];
         for name in names.iter().unique() {
-            let participant = participants.get(name).unwrap();
-            if let None = participant {
-                add_participants.push(Participant {
-                    id: start_id + add_participants.len() as u32,
+            let user = users.get(name).unwrap();
+            if let None = user {
+                add_users.push(User {
+                    id: start_id + add_users.len() as u32,
                     name: name.to_string(),
                 })
             }
         }
 
         let added_from_idx = lock.len();
-        for participant in add_participants.into_iter() {
-            lock.push(participant);
+        for user in add_users.into_iter() {
+            lock.push(user);
         }
 
-        for existing_participant in lock.iter().skip(added_from_idx) {
-            participants.insert(
-                existing_participant.name.clone(),
-                Some(existing_participant.to_owned()),
+        for existing_user in lock.iter().skip(added_from_idx) {
+            users.insert(
+                existing_user.name.clone(),
+                Some(existing_user.to_owned()),
             );
         }
 
         Ok(names
             .into_iter()
-            .map(|name| participants[&name].as_ref().unwrap().id)
+            .map(|name| users[&name].as_ref().unwrap().id)
             .collect())
     }
 
-    fn fill_with_existing_participants(
+    fn fill_with_existing_users(
         &self,
-        participants: &mut HashMap<String, Option<Participant>>,
+        users: &mut HashMap<String, Option<User>>,
     ) -> Result<(), InsertError> {
-        let lock: MutexGuard<Vec<Participant>> = match self.participants.lock() {
+        let lock: MutexGuard<Vec<User>> = match self.users.lock() {
             Ok(lock) => lock,
             _ => return Err(InsertError::Unknown),
         };
 
-        for existing_participant in lock.iter() {
-            if !participants.contains_key(&existing_participant.name) {
+        for existing_user in lock.iter() {
+            if !users.contains_key(&existing_user.name) {
                 continue;
             }
-            participants.insert(
-                existing_participant.name.clone(),
-                Some(existing_participant.clone()),
+            users.insert(
+                existing_user.name.clone(),
+                Some(existing_user.clone()),
             );
         }
 
@@ -121,7 +121,7 @@ impl InMemoryRepository {
         event.name = event_data.name;
         event.date = event_data.date;
         event.repeat = event_data.repeat;
-        event.participants = self.insert_participants(event_data.participants)?;
+        event.participants = self.insert_users(event_data.participants)?;
         event.deleted = false;
         Ok(event.clone())
     }
@@ -169,7 +169,7 @@ impl Repository for InMemoryRepository {
             name: event_data.name,
             date: event_data.date,
             repeat: event_data.repeat,
-            participants: self.insert_participants(event_data.participants)?,
+            participants: self.insert_users(event_data.participants)?,
             deleted: false,
         };
 
@@ -178,31 +178,31 @@ impl Repository for InMemoryRepository {
         Ok(event)
     }
 
-    fn find_participants(&self, ids: Vec<u32>) -> Result<Vec<Participant>, FindAllError> {
-        let lock = match self.participants.lock() {
+    fn find_users(&self, ids: Vec<u32>) -> Result<Vec<User>, FindAllError> {
+        let lock = match self.users.lock() {
             Ok(lock) => lock,
             _ => return Err(FindAllError::Unknown),
         };
 
         let ids_set: HashSet<&u32> = ids.iter().collect();
 
-        let existing_participants: Vec<Participant> = lock
+        let existing_users: Vec<User> = lock
             .iter()
-            .filter(|participant| ids_set.contains(&participant.id))
-            .map(|participant| participant.clone())
+            .filter(|user| ids_set.contains(&user.id))
+            .map(|user| user.clone())
             .collect();
 
-        let participants = ids
+        let users = ids
             .into_iter()
             .filter_map(|key| {
-                existing_participants
+                existing_users
                     .iter()
-                    .find(|participant| participant.id == key)
+                    .find(|user| user.id == key)
             })
             .cloned()
             .collect();
 
-        Ok(participants)
+        Ok(users)
     }
 }
 
@@ -361,17 +361,17 @@ mod tests {
 
         // Testing find_participants here ---
 
-        let result = repo.find_participants(vec![1, 2]);
+        let result = repo.find_users(vec![1, 2]);
 
         match result {
             Ok(participants) => assert_eq!(
                 participants,
                 vec![
-                    Participant {
+                    User {
                         id: 1,
                         name: "Joana".to_string()
                     },
-                    Participant {
+                    User {
                         id: 2,
                         name: "Francisca".to_string()
                     }
