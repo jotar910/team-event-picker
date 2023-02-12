@@ -65,7 +65,7 @@ mod tests {
     #[test]
     fn it_should_return_the_id_for_the_created_event() {
         let repo = Arc::new(InMemoryRepository::new());
-        let req = mocks::mock_request();
+        let req = mocks::mock_create_event_request();
 
         let result = execute(repo, req);
 
@@ -78,7 +78,7 @@ mod tests {
     #[test]
     fn it_should_fail_on_invalid_request_payload_for_repeat_field() {
         let repo = Arc::new(InMemoryRepository::new());
-        let mut req = mocks::mock_request();
+        let mut req = mocks::mock_create_event_request();
         req.repeat = "test".to_string();
 
         let result = execute(repo, req);
