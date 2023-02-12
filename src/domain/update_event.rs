@@ -11,6 +11,7 @@ pub struct Request {
     pub date: String,
     pub repeat: String,
     pub participants: Vec<String>,
+    pub channel: String,
 }
 
 impl TryFrom<Request> for EventCreation {
@@ -24,6 +25,7 @@ impl TryFrom<Request> for EventCreation {
             name: value.name,
             date: value.date,
             participants: value.participants,
+            channel: value.channel,
         })
     }
 }

@@ -5,6 +5,7 @@ pub struct Event {
     pub date: String,
     pub repeat: RepeatPeriod,
     pub participants: Vec<u32>,
+    pub channel: u32,
     pub deleted: bool,
 }
 
@@ -13,6 +14,13 @@ pub struct EventCreation {
     pub date: String,
     pub repeat: RepeatPeriod,
     pub participants: Vec<String>,
+    pub channel: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Channel {
+    pub id: u32,
+    pub name: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]

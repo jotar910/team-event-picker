@@ -1,5 +1,5 @@
 use super::User;
-use crate::domain::find_event::Response;
+use crate::domain::{entities::Channel, find_event::Response};
 
 pub fn mock_find_event_response() -> Response {
     let event_creation = super::mock_event_creation();
@@ -17,5 +17,9 @@ pub fn mock_find_event_response() -> Response {
                 name: participant.to_string(),
             })
             .collect(),
+        channel: Channel {
+            id: 0,
+            name: event_creation.channel,
+        },
     }
 }

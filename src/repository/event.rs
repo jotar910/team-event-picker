@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::MutexGuard};
 
 use itertools::Itertools;
 
-use crate::domain::entities::{Event, EventCreation, User};
+use crate::domain::entities::{Channel, Event, EventCreation, User};
 
 #[derive(Debug, PartialEq)]
 pub enum FindError {
@@ -49,11 +49,14 @@ pub trait Repository: Send + Sync {
     fn update(&self, id: u32, event_data: EventCreation) -> Result<Event, UpdateError>;
     fn delete(&self, id: u32) -> Result<Event, DeleteError>;
 
+    fn find_channel(&self, ids: u32) -> Result<Channel, FindError>;
+
     fn find_users(&self, ids: Vec<u32>) -> Result<Vec<User>, FindAllError>;
 }
 
 pub struct InMemoryRepository {
     events: Mutex<Vec<Event>>,
+    channels: Mutex<Vec<Channel>>,
     users: Mutex<Vec<User>>,
 }
 
@@ -61,8 +64,27 @@ impl InMemoryRepository {
     pub fn new() -> InMemoryRepository {
         InMemoryRepository {
             events: Mutex::new(vec![]),
+            channels: Mutex::new(vec![]),
             users: Mutex::new(vec![]),
         }
+    }
+
+    fn insert_channel(&self, name: String) -> Result<u32, InsertError> {
+        let mut lock: MutexGuard<Vec<Channel>> = match self.channels.lock() {
+            Ok(lock) => lock,
+            _ => return Err(InsertError::Unknown),
+        };
+
+        if let Some(channel) = lock.iter().find(|&channel| channel.name == name) {
+            return Ok(channel.id);
+        }
+
+        let id = lock.len() as u32;
+        let channel = Channel { id, name };
+
+        lock.push(channel);
+
+        Ok(id)
     }
 
     fn insert_users(&self, names: Vec<String>) -> Result<Vec<u32>, InsertError> {
@@ -189,6 +211,7 @@ impl Repository for InMemoryRepository {
             date: event_data.date,
             repeat: event_data.repeat,
             participants: self.insert_users(event_data.participants)?,
+            channel: self.insert_channel(event_data.channel)?,
             deleted: false,
         };
 
@@ -244,6 +267,17 @@ impl Repository for InMemoryRepository {
                 Ok(event.clone())
             }
             None => Err(DeleteError::NotFound),
+        }
+    }
+
+    fn find_channel(&self, id: u32) -> Result<Channel, FindError> {
+        let lock = match self.channels.lock() {
+            Ok(lock) => lock,
+            _ => return Err(FindError::Unknown),
+        };
+        match lock.iter().find(|&channel| channel.id == id) {
+            Some(channel) => Ok(channel.clone()),
+            _ => Err(FindError::NotFound),
         }
     }
 
@@ -462,7 +496,7 @@ mod tests {
         let result = repo.update(0, mock);
 
         match result {
-            Ok(Event {name, ..}) => assert_eq!(name, "Johny"),
+            Ok(Event { name, .. }) => assert_eq!(name, "Johny"),
             _ => unreachable!(),
         }
     }
