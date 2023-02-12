@@ -23,6 +23,13 @@ pub enum InsertError {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum UpdateError {
+    Conflict,
+    NotFound,
+    Unknown,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum DeleteError {
     NotFound,
     Unknown,
@@ -39,6 +46,7 @@ pub trait Repository: Send + Sync {
 
     fn find(&self, id: u32) -> Result<Event, FindError>;
     fn insert(&self, event_data: EventCreation) -> Result<Event, InsertError>;
+    fn update(&self, id: u32, event_data: EventCreation) -> Result<Event, UpdateError>;
     fn delete(&self, id: u32) -> Result<Event, DeleteError>;
 
     fn find_users(&self, ids: Vec<u32>) -> Result<Vec<User>, FindAllError>;
@@ -118,11 +126,16 @@ impl InMemoryRepository {
         &self,
         event: &mut Event,
         event_data: EventCreation,
-    ) -> Result<Event, InsertError> {
+    ) -> Result<Event, UpdateError> {
         event.name = event_data.name;
         event.date = event_data.date;
         event.repeat = event_data.repeat;
-        event.participants = self.insert_users(event_data.participants)?;
+        event.participants =
+            self.insert_users(event_data.participants)
+                .map_err(|error| match error {
+                    InsertError::Conflict => UpdateError::Conflict,
+                    InsertError::Unknown => UpdateError::Unknown,
+                })?;
         event.deleted = false;
         Ok(event.clone())
     }
@@ -158,7 +171,12 @@ impl Repository for InMemoryRepository {
         for existing_event in lock.iter_mut() {
             if existing_event.name == event_data.name {
                 if existing_event.deleted {
-                    return Ok(self.update_event(existing_event, event_data)?);
+                    return Ok(self
+                        .update_event(existing_event, event_data)
+                        .map_err(|error| match error {
+                            UpdateError::Conflict => InsertError::Conflict,
+                            UpdateError::NotFound | UpdateError::Unknown => InsertError::Unknown,
+                        })?);
                 }
                 return Err(InsertError::Conflict);
             }
@@ -177,6 +195,38 @@ impl Repository for InMemoryRepository {
         lock.push(event.clone());
 
         Ok(event)
+    }
+
+    fn update(&self, id: u32, event_data: EventCreation) -> Result<Event, UpdateError> {
+        let mut lock = match self.events.lock() {
+            Ok(lock) => lock,
+            _ => return Err(UpdateError::Unknown),
+        };
+
+        let mut event_to_update: Option<&mut Event> = None;
+
+        for existing_event in lock.iter_mut() {
+            if existing_event.deleted {
+                continue;
+            }
+            if existing_event.id == id {
+                event_to_update = Some(existing_event);
+                continue;
+            }
+            if existing_event.name == event_data.name {
+                return Err(UpdateError::Conflict);
+            }
+        }
+
+        if let None = event_to_update {
+            return Err(UpdateError::NotFound);
+        }
+
+        let event = event_to_update.unwrap();
+
+        self.update_event(event, event_data)?;
+
+        Ok(event.clone())
     }
 
     fn delete(&self, id: u32) -> Result<Event, DeleteError> {
@@ -392,6 +442,64 @@ mod tests {
                     }
                 ]
             ),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn it_should_update_event_with_the_provided_data() {
+        let repo = InMemoryRepository::new();
+
+        if let Err(..) = repo.insert(mocks::mock_event_creation()) {
+            unreachable!("event must be created")
+        }
+
+        // Testing update here --
+
+        let mut mock = mocks::mock_event_creation();
+        mock.name = "Johny".to_string();
+
+        let result = repo.update(0, mock);
+
+        match result {
+            Ok(Event {name, ..}) => assert_eq!(name, "Johny"),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn it_should_return_conflict_error_when_name_already_exists_while_updating_an_event() {
+        let repo = InMemoryRepository::new();
+
+        if let Err(..) = repo.insert(mocks::mock_event_creation()) {
+            unreachable!("event must be created")
+        }
+
+        let mut mock = mocks::mock_event_creation();
+        mock.name += "2";
+
+        if let Err(..) = repo.insert(mock) {
+            unreachable!("event must be created")
+        }
+
+        // Testing update here --
+
+        let result = repo.update(1, mocks::mock_event_creation());
+
+        match result {
+            Err(error) => assert_eq!(error, UpdateError::Conflict),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn it_should_return_not_found_error_when_event_to_update_does_not_exist() {
+        let repo = InMemoryRepository::new();
+
+        let result = repo.update(0, mocks::mock_event_creation());
+
+        match result {
+            Err(error) => assert_eq!(error, UpdateError::NotFound),
             _ => unreachable!(),
         }
     }
