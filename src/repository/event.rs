@@ -22,6 +22,12 @@ pub enum InsertError {
     Unknown,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum DeleteError {
+    NotFound,
+    Unknown,
+}
+
 #[allow(drop_bounds)]
 pub trait Transition: Drop {
     fn commit(&self);
@@ -33,6 +39,7 @@ pub trait Repository: Send + Sync {
 
     fn find(&self, id: u32) -> Result<Event, FindError>;
     fn insert(&self, event_data: EventCreation) -> Result<Event, InsertError>;
+    fn delete(&self, id: u32) -> Result<Event, DeleteError>;
 
     fn find_users(&self, ids: Vec<u32>) -> Result<Vec<User>, FindAllError>;
 }
@@ -79,10 +86,7 @@ impl InMemoryRepository {
         }
 
         for existing_user in lock.iter().skip(added_from_idx) {
-            users.insert(
-                existing_user.name.clone(),
-                Some(existing_user.to_owned()),
-            );
+            users.insert(existing_user.name.clone(), Some(existing_user.to_owned()));
         }
 
         Ok(names
@@ -104,10 +108,7 @@ impl InMemoryRepository {
             if !users.contains_key(&existing_user.name) {
                 continue;
             }
-            users.insert(
-                existing_user.name.clone(),
-                Some(existing_user.clone()),
-            );
+            users.insert(existing_user.name.clone(), Some(existing_user.clone()));
         }
 
         Ok(())
@@ -178,6 +179,24 @@ impl Repository for InMemoryRepository {
         Ok(event)
     }
 
+    fn delete(&self, id: u32) -> Result<Event, DeleteError> {
+        let mut lock = match self.events.lock() {
+            Ok(lock) => lock,
+            _ => return Err(DeleteError::Unknown),
+        };
+
+        match lock
+            .iter_mut()
+            .find(|event| event.id == id && !event.deleted)
+        {
+            Some(event) => {
+                event.deleted = true;
+                Ok(event.clone())
+            }
+            None => Err(DeleteError::NotFound),
+        }
+    }
+
     fn find_users(&self, ids: Vec<u32>) -> Result<Vec<User>, FindAllError> {
         let lock = match self.users.lock() {
             Ok(lock) => lock,
@@ -194,11 +213,7 @@ impl Repository for InMemoryRepository {
 
         let users = ids
             .into_iter()
-            .filter_map(|key| {
-                existing_users
-                    .iter()
-                    .find(|user| user.id == key)
-            })
+            .filter_map(|key| existing_users.iter().find(|user| user.id == key))
             .cloned()
             .collect();
 
@@ -378,6 +393,33 @@ mod tests {
                 ]
             ),
             _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn in_should_delete_an_event_by_id() {
+        let repo = InMemoryRepository::new();
+
+        if let Err(_) = repo.insert(mocks::mock_event_creation()) {
+            unreachable!("event must be created")
+        }
+
+        if let Err(_) = repo.find(0) {
+            unreachable!("event must exist")
+        }
+
+        // Testing delete here ---
+
+        let result = repo.delete(0);
+
+        match result {
+            Ok(Event { id, .. }) => assert_eq!(id, 0),
+            _ => unreachable!(),
+        }
+
+        match repo.find(0) {
+            Err(err) => assert_eq!(err, FindError::NotFound),
+            _ => unreachable!("should not exist"),
         }
     }
 }
