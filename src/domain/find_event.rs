@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::domain::entities::{Participant, RepeatPeriod};
-use crate::repository::event::{FindError, Repository};
+use crate::repository::event::{FindAllError, FindError, Repository};
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
@@ -38,7 +38,9 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
         repeat: event.repeat,
         participants: repo
             .find_participants(event.participants)
-            .map_err(|_| Error::Unknown)?,
+            .map_err(|error| match error {
+                FindAllError::Unknown => Error::Unknown,
+            })?,
     })
 }
 

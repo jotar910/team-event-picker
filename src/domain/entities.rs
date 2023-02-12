@@ -5,6 +5,7 @@ pub struct Event {
     pub date: String,
     pub repeat: RepeatPeriod,
     pub participants: Vec<u32>,
+    pub deleted: bool,
 }
 
 pub struct EventCreation {

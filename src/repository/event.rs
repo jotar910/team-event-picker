@@ -16,6 +16,7 @@ pub enum FindAllError {
     Unknown,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum InsertError {
     Conflict,
     Unknown,
@@ -111,6 +112,19 @@ impl InMemoryRepository {
 
         Ok(())
     }
+
+    fn update_event(
+        &self,
+        event: &mut Event,
+        event_data: EventCreation,
+    ) -> Result<Event, InsertError> {
+        event.name = event_data.name;
+        event.date = event_data.date;
+        event.repeat = event_data.repeat;
+        event.participants = self.insert_participants(event_data.participants)?;
+        event.deleted = false;
+        Ok(event.clone())
+    }
 }
 
 impl Repository for InMemoryRepository {
@@ -123,8 +137,13 @@ impl Repository for InMemoryRepository {
             Ok(lock) => lock,
             _ => return Err(FindError::Unknown),
         };
-        match lock.get(id as usize) {
-            Some(event) => Ok(event.clone()),
+        match lock.iter().find(|&event| event.id == id) {
+            Some(event) => {
+                if event.deleted {
+                    return Err(FindError::NotFound);
+                }
+                Ok(event.clone())
+            }
             _ => Err(FindError::NotFound),
         }
     }
@@ -135,6 +154,15 @@ impl Repository for InMemoryRepository {
             _ => return Err(InsertError::Unknown),
         };
 
+        for existing_event in lock.iter_mut() {
+            if existing_event.name == event_data.name {
+                if existing_event.deleted {
+                    return Ok(self.update_event(existing_event, event_data)?);
+                }
+                return Err(InsertError::Conflict);
+            }
+        }
+
         let id = lock.len() as u32;
         let event = Event {
             id,
@@ -142,6 +170,7 @@ impl Repository for InMemoryRepository {
             date: event_data.date,
             repeat: event_data.repeat,
             participants: self.insert_participants(event_data.participants)?,
+            deleted: false,
         };
 
         lock.push(event.clone());
@@ -165,7 +194,12 @@ impl Repository for InMemoryRepository {
 
         let participants = ids
             .into_iter()
-            .filter_map(|key| existing_participants.iter().find(|participant| participant.id == key)).cloned()
+            .filter_map(|key| {
+                existing_participants
+                    .iter()
+                    .find(|participant| participant.id == key)
+            })
+            .cloned()
             .collect();
 
         Ok(participants)
@@ -241,12 +275,32 @@ mod tests {
 
         // New event creation ---
 
-        let creation = mocks::mock_event_creation();
+        let mut creation = mocks::mock_event_creation();
+        creation.name += "2";
 
         let result = repo.insert(creation);
 
         match result {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![1, 0]),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn it_should_return_conflict_when_created_events_with_the_same_name() {
+        let repo = InMemoryRepository::new();
+
+        let result = repo.insert(mocks::mock_event_creation());
+
+        match result {
+            Ok(Event { id, .. }) => assert_eq!(id, 0),
+            _ => unreachable!(),
+        }
+
+        let result = repo.insert(mocks::mock_event_creation());
+
+        match result {
+            Err(err) => assert_eq!(err, InsertError::Conflict),
             _ => unreachable!(),
         }
     }

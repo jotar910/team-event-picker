@@ -50,7 +50,7 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
             tx.rollback();
             Err(match err {
                 InsertError::Conflict => Error::Conflict,
-                _ => Error::Unknown,
+                InsertError::Unknown => Error::Unknown,
             })
         }
     }
