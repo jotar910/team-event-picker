@@ -4,6 +4,7 @@ pub mod delete_event;
 pub mod find_event;
 pub mod find_all_events;
 pub mod update_event;
+pub mod update_participants;
 pub mod entities;
 pub mod dtos;
 
