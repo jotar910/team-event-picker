@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::domain::entities::ParticipantUpdate;
+use crate::domain::entities::ParticipantEdit;
 use crate::repository::event::{Repository, UpdateError};
 
 pub struct Request {
@@ -8,9 +8,9 @@ pub struct Request {
     pub participants: Vec<String>,
 }
 
-impl From<Request> for ParticipantUpdate {
+impl From<Request> for ParticipantEdit {
     fn from(value: Request) -> Self {
-        ParticipantUpdate {
+        ParticipantEdit {
             event: value.event,
             participants: value.participants,
         }
@@ -72,8 +72,8 @@ mod tests {
         }
     }
 
-    impl From<ParticipantUpdate> for Request {
-        fn from(value: ParticipantUpdate) -> Self {
+    impl From<ParticipantEdit> for Request {
+        fn from(value: ParticipantEdit) -> Self {
             Self {
                 event: value.event,
                 participants: value.participants,

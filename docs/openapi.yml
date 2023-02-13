@@ -153,21 +153,6 @@ paths:
           description: Successful operation
         "404":
           description: Resource not found
-
-  "/channels/{channelName}/events/{eventId}/participants/{participantName}":
-    parameters:
-      - name: channelName
-        in: path
-        description: The channel identifier
-        required: true
-        schema:
-          type: string
-      - name: eventId
-        in: path
-        description: The event identifier
-        required: true
-        schema:
-          type: number
     delete:
       tags:
         - participants

@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::MutexGuard};
 
 use itertools::Itertools;
 
-use crate::domain::entities::{Channel, Event, EventCreation, ParticipantUpdate, User};
+use crate::domain::entities::{Channel, Event, EventCreation, ParticipantEdit, User};
 
 #[derive(Debug, PartialEq)]
 pub enum FindError {
@@ -50,7 +50,8 @@ pub trait Repository: Send + Sync {
     fn update(&self, id: u32, event_data: EventCreation) -> Result<Event, UpdateError>;
     fn delete(&self, id: u32) -> Result<Event, DeleteError>;
 
-    fn update_participants(&self, update_data: ParticipantUpdate) -> Result<Event, UpdateError>;
+    fn update_participants(&self, update_data: ParticipantEdit) -> Result<Event, UpdateError>;
+    fn delete_participants(&self, delete_data: ParticipantEdit) -> Result<Vec<User>, DeleteError>;
 
     fn find_channel(&self, ids: u32) -> Result<Channel, FindError>;
     fn find_all_channels(&self) -> Result<Vec<Channel>, FindAllError>;
@@ -301,7 +302,7 @@ impl Repository for InMemoryRepository {
         }
     }
 
-    fn update_participants(&self, update_data: ParticipantUpdate) -> Result<Event, UpdateError> {
+    fn update_participants(&self, update_data: ParticipantEdit) -> Result<Event, UpdateError> {
         let mut lock = match self.events.lock() {
             Ok(lock) => lock,
             _ => return Err(UpdateError::Unknown),
@@ -323,6 +324,41 @@ impl Repository for InMemoryRepository {
                 })?;
 
         Ok(event.clone())
+    }
+
+    fn delete_participants(&self, delete_data: ParticipantEdit) -> Result<Vec<User>, DeleteError> {
+        let mut lock = match self.events.lock() {
+            Ok(lock) => lock,
+            _ => return Err(DeleteError::Unknown),
+        };
+
+        let event = lock.iter_mut().find(|event| event.id == delete_data.event);
+
+        if let None = event {
+            return Err(DeleteError::NotFound);
+        }
+
+        let mut event = event.unwrap();
+
+        let mut deleted_participants: Vec<User> = vec![];
+
+        event.participants = self
+            .find_users(event.participants.clone())
+            .map_err(|err| match err {
+                FindAllError::Unknown => DeleteError::Unknown,
+            })?
+            .into_iter()
+            .filter(|participant| {
+                let to_delete = delete_data.participants.contains(&participant.name);
+                if to_delete {
+                    deleted_participants.push(participant.clone());
+                }
+                return !to_delete;
+            })
+            .map(|participant| participant.id)
+            .collect();
+
+        Ok(deleted_participants)
     }
 
     fn find_channel(&self, id: u32) -> Result<Channel, FindError> {
@@ -717,6 +753,35 @@ mod tests {
 
         match result {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![2, 3, 1]),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn it_should_delete_participants_for_the_given_event() {
+        let repo = InMemoryRepository::new();
+
+        let result = repo.insert(mocks::mock_event_creation());
+
+        match result {
+            Ok(Event { participants, .. }) => assert_eq!(participants, vec![0, 1]),
+            _ => unreachable!(),
+        }
+
+        // Testing delete_participants here ---
+
+        let result = repo.delete_participants(mocks::mock_participant_update());
+
+        match result {
+            Ok(participants) => assert_eq!(
+                participants.iter().map(|p| p.id).collect::<Vec<u32>>(),
+                vec![1]
+            ),
+            _ => unreachable!(),
+        }
+
+        match repo.find(0) {
+            Ok(Event { participants, .. }) => assert_eq!(participants, vec![0]),
             _ => unreachable!(),
         }
     }

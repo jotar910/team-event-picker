@@ -38,7 +38,7 @@ pub enum RepeatPeriod {
     Yearly,
 }
 
-pub struct ParticipantUpdate {
+pub struct ParticipantEdit {
     pub event: u32,
     pub participants: Vec<String>,
 }
