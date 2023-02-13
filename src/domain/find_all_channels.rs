@@ -27,7 +27,7 @@ mod tests {
     use crate::repository::event::InMemoryRepository;
 
     #[test]
-    fn it_should_return_the_event_for_the_provided_id() {
+    fn it_should_return_all_the_channels() {
         let repo = Arc::new(InMemoryRepository::new());
 
         if let Err(..) = repo.insert(mocks::mock_event_creation()) {
