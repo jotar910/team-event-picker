@@ -50,6 +50,7 @@ pub trait Repository: Send + Sync {
     fn delete(&self, id: u32) -> Result<Event, DeleteError>;
 
     fn find_channel(&self, ids: u32) -> Result<Channel, FindError>;
+    fn find_all_channels(&self) -> Result<Vec<Channel>, FindAllError>;
 
     fn find_users(&self, ids: Vec<u32>) -> Result<Vec<User>, FindAllError>;
 }
@@ -279,6 +280,14 @@ impl Repository for InMemoryRepository {
             Some(channel) => Ok(channel.clone()),
             _ => Err(FindError::NotFound),
         }
+    }
+
+    fn find_all_channels(&self) -> Result<Vec<Channel>, FindAllError> {
+        let lock = match self.channels.lock() {
+            Ok(lock) => lock,
+            _ => return Err(FindAllError::Unknown),
+        };
+        Ok(lock.iter().map(|channel| channel.clone()).collect())
     }
 
     fn find_users(&self, ids: Vec<u32>) -> Result<Vec<User>, FindAllError> {
@@ -539,7 +548,35 @@ mod tests {
     }
 
     #[test]
-    fn in_should_delete_an_event_by_id() {
+    fn it_should_return_the_list_of_all_channels_on_find_all_channels() {
+        let repo = InMemoryRepository::new();
+
+        if let Err(_) = repo.insert(mocks::mock_event_creation()) {
+            unreachable!("event must be created")
+        }
+
+        let mut mock = mocks::mock_event_creation();
+        mock.name += "2";
+        mock.channel += "2";
+        if let Err(_) = repo.insert(mock) {
+            unreachable!("event must be created")
+        }
+
+        // Testing find_all_channels here ---
+
+        let result = repo.find_all_channels();
+
+        match result {
+            Ok(channels) => assert_eq!(
+                channels.iter().map(|channel| channel.id).collect::<Vec<u32>>(),
+                vec![0, 1]
+            ),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn it_should_delete_an_event_by_id() {
         let repo = InMemoryRepository::new();
 
         if let Err(_) = repo.insert(mocks::mock_event_creation()) {
