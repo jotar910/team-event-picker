@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::MutexGuard};
 
 use itertools::Itertools;
 
-use crate::domain::entities::{Channel, Event, EventCreation, User};
+use crate::domain::entities::{Channel, Event, EventCreation, ParticipantUpdate, User};
 
 #[derive(Debug, PartialEq)]
 pub enum FindError {
@@ -49,6 +49,8 @@ pub trait Repository: Send + Sync {
     fn insert(&self, event_data: EventCreation) -> Result<Event, InsertError>;
     fn update(&self, id: u32, event_data: EventCreation) -> Result<Event, UpdateError>;
     fn delete(&self, id: u32) -> Result<Event, DeleteError>;
+
+    fn update_participants(&self, update_data: ParticipantUpdate) -> Result<Event, UpdateError>;
 
     fn find_channel(&self, ids: u32) -> Result<Channel, FindError>;
     fn find_all_channels(&self) -> Result<Vec<Channel>, FindAllError>;
@@ -299,6 +301,30 @@ impl Repository for InMemoryRepository {
         }
     }
 
+    fn update_participants(&self, update_data: ParticipantUpdate) -> Result<Event, UpdateError> {
+        let mut lock = match self.events.lock() {
+            Ok(lock) => lock,
+            _ => return Err(UpdateError::Unknown),
+        };
+
+        let event = lock.iter_mut().find(|event| event.id == update_data.event);
+
+        if let None = event {
+            return Err(UpdateError::NotFound);
+        }
+
+        let mut event = event.unwrap();
+
+        event.participants =
+            self.insert_users(update_data.participants)
+                .map_err(|err| match err {
+                    InsertError::Conflict => UpdateError::Conflict,
+                    InsertError::Unknown => UpdateError::Unknown,
+                })?;
+
+        Ok(event.clone())
+    }
+
     fn find_channel(&self, id: u32) -> Result<Channel, FindError> {
         let lock = match self.channels.lock() {
             Ok(lock) => lock,
@@ -515,7 +541,10 @@ mod tests {
         let result = repo.find_all(mocks::mock_channel().name);
 
         match result {
-            Ok(events) => assert_eq!(events.iter().map(|e| e.id).collect::<Vec<u32>>(), vec![0, 2]),
+            Ok(events) => assert_eq!(
+                events.iter().map(|e| e.id).collect::<Vec<u32>>(),
+                vec![0, 2]
+            ),
             _ => unreachable!(),
         }
     }
@@ -668,6 +697,27 @@ mod tests {
         match repo.find(0) {
             Err(err) => assert_eq!(err, FindError::NotFound),
             _ => unreachable!("should not exist"),
+        }
+    }
+
+    #[test]
+    fn it_should_update_participants_for_the_given_event() {
+        let repo = InMemoryRepository::new();
+
+        let result = repo.insert(mocks::mock_event_creation());
+
+        match result {
+            Ok(Event { participants, .. }) => assert_eq!(participants, vec![0, 1]),
+            _ => unreachable!(),
+        }
+
+        // Testing update_participants here ---
+
+        let result = repo.update_participants(mocks::mock_participant_update());
+
+        match result {
+            Ok(Event { participants, .. }) => assert_eq!(participants, vec![2, 3, 1]),
+            _ => unreachable!(),
         }
     }
 }

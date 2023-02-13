@@ -1,4 +1,4 @@
-use super::{Channel, EventCreation, RepeatPeriod};
+use super::{Channel, EventCreation, ParticipantUpdate, RepeatPeriod};
 
 pub fn mock_event_creation() -> EventCreation {
     EventCreation {
@@ -7,6 +7,17 @@ pub fn mock_event_creation() -> EventCreation {
         repeat: RepeatPeriod::Daily,
         participants: vec!["João".to_string(), "Joana".to_string()],
         channel: "Channel".to_string(),
+    }
+}
+
+pub fn mock_participant_update() -> ParticipantUpdate {
+    ParticipantUpdate {
+        event: 0,
+        participants: vec![
+            "Francisca".to_string(),
+            "Simão".to_string(),
+            "Joana".to_string(),
+        ],
     }
 }
 
