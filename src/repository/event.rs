@@ -45,6 +45,7 @@ pub trait Repository: Send + Sync {
     fn transition(&self) -> Box<dyn Transition>;
 
     fn find(&self, id: u32) -> Result<Event, FindError>;
+    fn find_all(&self, channel: String) -> Result<Vec<Event>, FindAllError>;
     fn insert(&self, event_data: EventCreation) -> Result<Event, InsertError>;
     fn update(&self, id: u32, event_data: EventCreation) -> Result<Event, UpdateError>;
     fn delete(&self, id: u32) -> Result<Event, DeleteError>;
@@ -68,6 +69,17 @@ impl InMemoryRepository {
             channels: Mutex::new(vec![]),
             users: Mutex::new(vec![]),
         }
+    }
+
+    fn find_channel_by_name(&self, name: String) -> Option<Channel> {
+        let lock: MutexGuard<Vec<Channel>> = match self.channels.lock() {
+            Ok(lock) => lock,
+            _ => return None,
+        };
+
+        lock.iter()
+            .find(|&channel| channel.name == name)
+            .map(|channel| channel.clone())
     }
 
     fn insert_channel(&self, name: String) -> Result<u32, InsertError> {
@@ -183,6 +195,22 @@ impl Repository for InMemoryRepository {
             }
             _ => Err(FindError::NotFound),
         }
+    }
+
+    fn find_all(&self, channel: String) -> Result<Vec<Event>, FindAllError> {
+        let lock = match self.events.lock() {
+            Ok(lock) => lock,
+            _ => return Err(FindAllError::Unknown),
+        };
+        let channel = match self.find_channel_by_name(channel) {
+            Some(channel) => channel,
+            None => return Ok(vec![]),
+        };
+        Ok(lock
+            .iter()
+            .filter(|event| event.channel == channel.id)
+            .map(|event| event.clone())
+            .collect())
     }
 
     fn insert(&self, event_data: EventCreation) -> Result<Event, InsertError> {
@@ -426,7 +454,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_return_the_event_when_find_is_called_with_a_existing_id() {
+    fn it_should_return_the_event_when_find_is_called_with_an_existing_id() {
         let repo = InMemoryRepository::new();
 
         let mock = mocks::mock_event_creation();
@@ -450,6 +478,44 @@ mod tests {
 
         match result {
             Ok(Event { id, .. }) => assert_eq!(id, 1),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn it_should_return_all_the_events_for_a_given_channel_when_find_all() {
+        let repo = InMemoryRepository::new();
+
+        let mock = mocks::mock_event_creation();
+        let result = repo.insert(mock);
+
+        if let Err(_) = result {
+            unreachable!("event must be created")
+        }
+
+        let mut mock = mocks::mock_event_creation();
+        mock.name += "2";
+        mock.channel += "2";
+        let result = repo.insert(mock);
+
+        if let Err(_) = result {
+            unreachable!("event must be created")
+        }
+
+        let mut mock = mocks::mock_event_creation();
+        mock.name += "3";
+        let result = repo.insert(mock);
+
+        if let Err(_) = result {
+            unreachable!("event must be created")
+        }
+
+        // Testing find_all here ---
+
+        let result = repo.find_all(mocks::mock_channel().name);
+
+        match result {
+            Ok(events) => assert_eq!(events.iter().map(|e| e.id).collect::<Vec<u32>>(), vec![0, 2]),
             _ => unreachable!(),
         }
     }
@@ -568,7 +634,10 @@ mod tests {
 
         match result {
             Ok(channels) => assert_eq!(
-                channels.iter().map(|channel| channel.id).collect::<Vec<u32>>(),
+                channels
+                    .iter()
+                    .map(|channel| channel.id)
+                    .collect::<Vec<u32>>(),
                 vec![0, 1]
             ),
             _ => unreachable!(),
