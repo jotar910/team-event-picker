@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::MutexGuard};
 
 use itertools::Itertools;
 
-use crate::domain::entities::{Channel, Event, EventCreation, ParticipantEdit, User};
+use crate::domain::entities::{Channel, Event, EventCreation, ParticipantEdit, User, EventPick};
 
 #[derive(Debug, PartialEq)]
 pub enum FindError {
@@ -56,7 +56,11 @@ pub trait Repository: Send + Sync {
     fn find_channel(&self, ids: u32) -> Result<Channel, FindError>;
     fn find_all_channels(&self) -> Result<Vec<Channel>, FindAllError>;
 
+    fn find_user(&self, id: u32) -> Result<User, FindError>;
     fn find_users(&self, ids: Vec<u32>) -> Result<Vec<User>, FindAllError>;
+
+    fn save_pick(&self, pick_data: EventPick) -> Result<(), UpdateError>;
+    fn rev_pick(&self, event_id: u32) -> Result<(), UpdateError>;
 }
 
 pub struct InMemoryRepository {
@@ -244,6 +248,8 @@ impl Repository for InMemoryRepository {
             repeat: event_data.repeat,
             participants: self.insert_users(event_data.participants)?,
             channel: self.insert_channel(event_data.channel)?,
+            prev_pick: 0,
+            cur_pick: 0,
             deleted: false,
         };
 
@@ -308,7 +314,7 @@ impl Repository for InMemoryRepository {
             _ => return Err(UpdateError::Unknown),
         };
 
-        let event = lock.iter_mut().find(|event| event.id == update_data.event);
+        let event = lock.iter_mut().find(|event| event.id == update_data.event && !event.deleted);
 
         if let None = event {
             return Err(UpdateError::NotFound);
@@ -332,7 +338,7 @@ impl Repository for InMemoryRepository {
             _ => return Err(DeleteError::Unknown),
         };
 
-        let event = lock.iter_mut().find(|event| event.id == delete_data.event);
+        let event = lock.iter_mut().find(|event| event.id == delete_data.event && !event.deleted);
 
         if let None = event {
             return Err(DeleteError::NotFound);
@@ -380,6 +386,17 @@ impl Repository for InMemoryRepository {
         Ok(lock.iter().map(|channel| channel.clone()).collect())
     }
 
+    fn find_user(&self, id: u32) -> Result<User, FindError> {
+        let lock = match self.users.lock() {
+            Ok(lock) => lock,
+            _ => return Err(FindError::Unknown),
+        };
+        match lock.iter().find(|&user| user.id == id) {
+            Some(channel) => Ok(channel.clone()),
+            _ => Err(FindError::NotFound),
+        }
+    }
+
     fn find_users(&self, ids: Vec<u32>) -> Result<Vec<User>, FindAllError> {
         let lock = match self.users.lock() {
             Ok(lock) => lock,
@@ -401,6 +418,37 @@ impl Repository for InMemoryRepository {
             .collect();
 
         Ok(users)
+    }
+
+    fn save_pick(&self, pick_data: EventPick) -> Result<(), UpdateError> {
+        let mut lock = match self.events.lock() {
+            Ok(lock) => lock,
+            Err(..) => return Err(UpdateError::Unknown),
+        };
+
+        match lock.iter_mut().find(|event| event.id == pick_data.event && !event.deleted) {
+            Some(event) => {
+                event.prev_pick = event.cur_pick;
+                event.cur_pick = pick_data.pick;
+                Ok(())
+            }
+            _ => Err(UpdateError::NotFound),
+        }
+    }
+
+    fn rev_pick(&self, event_id: u32) -> Result<(), UpdateError> {
+        let mut lock = match self.events.lock() {
+            Ok(lock) => lock,
+            Err(..) => return Err(UpdateError::Unknown),
+        };
+
+        match lock.iter_mut().find(|event| event.id == event_id && !event.deleted) {
+            Some(event) => {
+                event.cur_pick = event.prev_pick;
+                Ok(())
+            }
+            _ => Err(UpdateError::NotFound),
+        }
     }
 }
 
