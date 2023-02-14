@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use crate::repository::event::{FindAllError, FindError, Repository, UpdateError};
 
+use super::helpers::pick_update::PickUpdateHelper;
+
 pub struct Request {
     pub event: u32,
     pub participants: Vec<String>,
@@ -30,6 +32,8 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
 
     let mut event = event.unwrap();
 
+    let pick_update_helper = PickUpdateHelper::new(&event.participants, event.cur_pick);
+
     event.participants = repo
         .find_users(event.participants.clone())
         .map_err(|err| match err {
@@ -39,6 +43,9 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
         .filter(|participant| !req.participants.contains(&participant.name))
         .map(|participant| participant.id)
         .collect();
+    
+    event.cur_pick = pick_update_helper.new_pick(&event.participants);
+    event.prev_pick = event.cur_pick;
 
     match repo.update_event(event) {
         Err(error) => match error {

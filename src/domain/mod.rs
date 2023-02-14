@@ -12,6 +12,7 @@ pub mod pick_participant;
 pub mod repick_participant;
 pub mod entities;
 pub mod dtos;
+pub mod helpers;
 
 #[cfg(test)]
 pub mod mocks;

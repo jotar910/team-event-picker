@@ -63,7 +63,7 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
         new_pick = 1 << new_pick_idx;
     } else {
         new_pick_idx = not_picked[rng.gen_range(0..not_picked.len())];
-        new_pick = pick | (1 << new_pick_idx)
+        new_pick = pick | (1 << new_pick_idx);
     }
 
     repo.save_pick(EventPick {
