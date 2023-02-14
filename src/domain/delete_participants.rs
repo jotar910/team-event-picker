@@ -19,7 +19,7 @@ pub enum Error {
 pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
     let event_id = req.event;
 
-    let event = repo.find(event_id);
+    let event = repo.find_event(event_id);
 
     if let Err(error) = event {
         return Err(match error {
@@ -76,7 +76,7 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match repo.find(0) {
+        match repo.find_event(0) {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![0]),
             _ => unreachable!(),
         }

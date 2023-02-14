@@ -52,7 +52,7 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match repo.find(0) {
+        match repo.find_event(0) {
             Err(err) => assert_eq!(err, FindError::NotFound),
             _ => unreachable!("event must not exist"),
         }

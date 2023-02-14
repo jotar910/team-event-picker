@@ -23,7 +23,7 @@ pub struct Response {
 }
 
 pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    let event = match repo.find(req.id) {
+    let event = match repo.find_event(req.id) {
         Err(err) => {
             return match err {
                 FindError::NotFound => Err(Error::NotFound),

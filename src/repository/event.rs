@@ -41,10 +41,9 @@ pub trait Transition: Drop {
 pub trait Repository: Send + Sync {
     fn transition(&self) -> Box<dyn Transition>;
 
-    fn find(&self, id: u32) -> Result<Event, FindError>;
-    fn find_by_name(&self, name: String) -> Result<Event, FindError>;
-    fn find_all(&self, channel: String) -> Result<Vec<Event>, FindAllError>;
-    
+    fn find_event(&self, id: u32) -> Result<Event, FindError>;
+    fn find_event_by_name(&self, name: String) -> Result<Event, FindError>;
+    fn find_all_events(&self, channel: String) -> Result<Vec<Event>, FindAllError>;
     fn insert_event(&self, event: Event) -> Result<Event, InsertError>;
     fn update_event(&self, event: Event) -> Result<(), UpdateError>;
     fn delete_event(&self, id: u32) -> Result<Event, DeleteError>;
@@ -95,7 +94,7 @@ impl Repository for InMemoryRepository {
         Box::new(InMemoryTransaction::new())
     }
 
-    fn find(&self, id: u32) -> Result<Event, FindError> {
+    fn find_event(&self, id: u32) -> Result<Event, FindError> {
         let lock = match self.events.lock() {
             Ok(lock) => lock,
             _ => return Err(FindError::Unknown),
@@ -106,7 +105,7 @@ impl Repository for InMemoryRepository {
         }
     }
 
-    fn find_by_name(&self, name: String) -> Result<Event, FindError> {
+    fn find_event_by_name(&self, name: String) -> Result<Event, FindError> {
         let lock = match self.events.lock() {
             Ok(lock) => lock,
             _ => return Err(FindError::Unknown),
@@ -120,7 +119,7 @@ impl Repository for InMemoryRepository {
         }
     }
 
-    fn find_all(&self, channel: String) -> Result<Vec<Event>, FindAllError> {
+    fn find_all_events(&self, channel: String) -> Result<Vec<Event>, FindAllError> {
         let lock = match self.events.lock() {
             Ok(lock) => lock,
             _ => return Err(FindAllError::Unknown),
@@ -137,7 +136,7 @@ impl Repository for InMemoryRepository {
     }
 
     fn insert_event(&self, event: Event) -> Result<Event, InsertError> {
-        match self.find_by_name(event.name.clone()) {
+        match self.find_event_by_name(event.name.clone()) {
             Ok(..) => return Err(InsertError::Conflict),
             Err(error) if error != FindError::NotFound => return Err(InsertError::Unknown),
             _ => (),
@@ -412,7 +411,7 @@ mod tests {
     fn it_should_return_not_found_error_when_find_event_does_not_exist() {
         let repo = InMemoryRepository::new();
 
-        let result = repo.find(0);
+        let result = repo.find_event(0);
 
         match result {
             Err(err) => assert_eq!(err, FindError::NotFound),
@@ -441,7 +440,7 @@ mod tests {
 
         // Testing find here ---
 
-        let result = repo.find(1);
+        let result = repo.find_event(1);
 
         match result {
             Ok(Event { id, .. }) => assert_eq!(id, 1),
@@ -490,7 +489,7 @@ mod tests {
 
         // Testing find_all here ---
 
-        let result = repo.find_all(mocks::mock_channel().name);
+        let result = repo.find_all_events(mocks::mock_channel().name);
 
         match result {
             Ok(events) => assert_eq!(
@@ -587,7 +586,7 @@ mod tests {
             unreachable!("event must be created")
         }
 
-        if let Err(_) = repo.find(0) {
+        if let Err(_) = repo.find_event(0) {
             unreachable!("event must exist")
         }
 
@@ -600,7 +599,7 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match repo.find(0) {
+        match repo.find_event(0) {
             Err(err) => assert_eq!(err, FindError::NotFound),
             _ => unreachable!("should not exist"),
         }

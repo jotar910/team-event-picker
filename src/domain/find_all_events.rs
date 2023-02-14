@@ -23,7 +23,7 @@ pub enum Error {
 }
 
 pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<ListResponse<Response>, Error> {
-    let events = match repo.find_all(req.channel) {
+    let events = match repo.find_all_events(req.channel) {
         Err(err) => {
             return match err {
                 FindAllError::Unknown => Err(Error::Unknown),

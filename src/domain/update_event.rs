@@ -61,7 +61,7 @@ impl From<insert_channel::Error> for Error {
 
 pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
     let event_id = req.id;
-    let existing_event = match repo.clone().find(event_id) {
+    let existing_event = match repo.clone().find_event(event_id) {
         Ok(event) => event,
         Err(error) => {
             return Err(match error {
@@ -132,7 +132,7 @@ mod tests {
         mocks::insert_mock_event(repo.clone());
 
         // Testing update here
-        
+
         let mut req = mocks::mock_update_event_request();
         req.repeat = "test".to_string();
 
@@ -201,7 +201,7 @@ mod tests {
             _ => unreachable!(),
         };
 
-        match repo.find(0) {
+        match repo.find_event(0) {
             Ok(Event { name, .. }) => assert_eq!(name, "Johny"),
             _ => unreachable!(),
         }

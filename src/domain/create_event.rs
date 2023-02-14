@@ -58,7 +58,7 @@ impl From<insert_channel::Error> for Error {
 }
 
 pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    match repo.clone().find_by_name(req.name.clone()) {
+    match repo.clone().find_event_by_name(req.name.clone()) {
         Ok(..) => return Err(Error::Conflict),
         Err(error) if error != FindError::NotFound => return Err(Error::Unknown),
         _ => (),
@@ -137,7 +137,7 @@ mod tests {
             _ => unreachable!(),
         };
 
-        match repo.find(0) {
+        match repo.find_event(0) {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![0, 1]),
             _ => unreachable!(),
         }
@@ -157,7 +157,7 @@ mod tests {
             _ => unreachable!(),
         };
 
-        match repo.clone().find(0) {
+        match repo.clone().find_event(0) {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![0, 0]),
             _ => unreachable!(),
         }
@@ -174,7 +174,7 @@ mod tests {
             _ => unreachable!(),
         };
 
-        match repo.clone().find(1) {
+        match repo.clone().find_event(1) {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![1, 0]),
             _ => unreachable!(),
         }

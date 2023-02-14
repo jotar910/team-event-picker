@@ -32,7 +32,7 @@ pub enum Error {
 }
 
 pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    let event = repo.find(req.event).map_err(|error| {
+    let event = repo.find_event(req.event).map_err(|error| {
         return match error {
             FindError::NotFound => Error::NotFound,
             FindError::Unknown => Error::Unknown,
@@ -104,7 +104,7 @@ mod tests {
             unreachable!()
         }
 
-        match repo.find(0) {
+        match repo.find_event(0) {
             Ok(event) => assert_ne!(event.cur_pick, 0),
             Err(..) => unreachable!("event must exist"),
         };
@@ -113,7 +113,7 @@ mod tests {
             unreachable!()
         }
 
-        match repo.find(0) {
+        match repo.find_event(0) {
             Ok(event) => assert_eq!(event.cur_pick, 3),
             Err(..) => unreachable!("event must exist"),
         };
@@ -122,7 +122,7 @@ mod tests {
             unreachable!()
         }
 
-        match repo.find(0) {
+        match repo.find_event(0) {
             Ok(event) => assert_eq!(event.cur_pick > 0 && event.cur_pick < 3, true),
             Err(..) => unreachable!("event must exist"),
         };
