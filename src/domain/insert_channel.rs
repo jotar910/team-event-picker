@@ -35,38 +35,25 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
     Ok(Response { channel })
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::domain::entities::Event;
-//     use crate::domain::mocks;
-//     use crate::repository::event::InMemoryRepository;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::mocks;
+    use crate::repository::event::InMemoryRepository;
 
-//     #[test]
-//     fn it_should_update_participants_for_the_given_event() {
-//         let repo = Arc::new(InMemoryRepository::new());
+    #[test]
+    fn it_should_update_participants_for_the_given_event() {
+        let repo = Arc::new(InMemoryRepository::new());
 
-//         let result = repo.insert(mocks::mock_event_creation());
+        let req = Request {
+            name: mocks::mock_channel().name,
+        };
 
-//         match result {
-//             Ok(Event { participants, .. }) => assert_eq!(participants, vec![0, 1]),
-//             _ => unreachable!(),
-//         }
+        let result = execute(repo, req);
 
-//         // Testing insert_users here ---
-
-//         let req = Request {
-//             names: mocks::mock_users_names(),
-//         };
-
-//         let result = execute(repo, req);
-
-//         match result {
-//             Ok(Response { users }) => assert_eq!(
-//                 users.into_iter().map(|user| user.id).collect::<Vec<u32>>(),
-//                 vec![2, 3, 1]
-//             ),
-//             _ => unreachable!(),
-//         }
-//     }
-// }
+        match result {
+            Ok(Response { channel }) => assert_eq!(channel, mocks::mock_channel()),
+            _ => unreachable!(),
+        }
+    }
+}
