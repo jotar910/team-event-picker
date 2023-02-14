@@ -76,7 +76,6 @@ fn fill_with_existing_users(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::Event;
     use crate::domain::mocks;
     use crate::repository::event::InMemoryRepository;
 
@@ -84,12 +83,9 @@ mod tests {
     fn it_should_update_participants_for_the_given_event() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        let result = repo.insert(mocks::mock_event_creation());
+        let result = mocks::insert_mock_event(repo.clone());
 
-        match result {
-            Ok(Event { participants, .. }) => assert_eq!(participants, vec![0, 1]),
-            _ => unreachable!(),
-        }
+        assert_eq!(result.participants, vec![0, 1]);
 
         // Testing insert_users here ---
 

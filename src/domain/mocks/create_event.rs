@@ -1,4 +1,8 @@
+use std::sync::Arc;
+
+use super::Event;
 use crate::domain::create_event::Request;
+use crate::repository::event::{InMemoryRepository, Repository};
 
 pub fn mock_create_event_request() -> Request {
     Request {
@@ -7,5 +11,18 @@ pub fn mock_create_event_request() -> Request {
         repeat: "daily".to_string(),
         participants: vec!["João".to_string(), "Joana".to_string()],
         channel: "Channel".to_string(),
+    }
+}
+
+pub fn insert_mock_event(repo: Arc<InMemoryRepository>) -> Event {
+    if let Err(..) = repo.insert_channel(super::mock_channel()) {
+        unreachable!("channel must be created for this test")
+    }
+    if let Err(..) = repo.insert_users(super::mock_participants()) {
+        unreachable!("users must be created for this test")
+    }
+    match repo.insert_event(super::mock_event()) {
+        Ok(event) => event,
+        _ => unreachable!("event must be created for this test"),
     }
 }

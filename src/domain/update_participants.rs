@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::domain::insert_users;
-use crate::repository::event::{Repository, UpdateError, FindError};
+use crate::repository::event::{FindError, Repository, UpdateError};
 
 pub struct Request {
     pub event: u32,
@@ -67,14 +67,16 @@ mod tests {
     fn it_should_update_participants() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        match repo.insert(mocks::mock_event_creation()) {
-            Ok(Event { participants, .. }) => assert_eq!(participants, vec![0, 1]),
-            _ => unreachable!("event must be created for this test"),
-        }
+        let result = mocks::insert_mock_event(repo.clone());
+
+        assert_eq!(result.participants, vec![0, 1]);
 
         // Testing update_participants here ---
 
-        let req = Request { event: 0, participants: mocks::mock_users_names() };
+        let req = Request {
+            event: 0,
+            participants: mocks::mock_users_names(),
+        };
 
         let result = execute(repo.clone(), req);
 

@@ -94,9 +94,7 @@ mod tests {
     fn it_should_pick_randomly_participants() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        if let Err(..) = repo.insert(mocks::mock_event_creation()) {
-            unreachable!("event must be created")
-        }
+        mocks::insert_mock_event(repo.clone());
 
         // Testing pick here ---
 

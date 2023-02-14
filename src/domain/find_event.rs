@@ -61,9 +61,7 @@ mod tests {
     fn it_should_return_the_event_for_the_provided_id() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        if let Err(..) = repo.insert(mocks::mock_event_creation()) {
-            unreachable!("event must be created for this test")
-        }
+        mocks::insert_mock_event(repo.clone());
 
         // Testing find here --
 

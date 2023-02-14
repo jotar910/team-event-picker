@@ -56,6 +56,7 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<ListResponse<R
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::entities::Channel;
     use crate::domain::mocks;
     use crate::repository::event::InMemoryRepository;
 
@@ -63,26 +64,30 @@ mod tests {
     fn it_should_return_all_the_events_for_the_provided_channel() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        if let Err(..) = repo.insert(mocks::mock_event_creation()) {
-            unreachable!("event must be created for this test")
-        }
+        mocks::insert_mock_event(repo.clone());
 
-        let mut mock = mocks::mock_event_creation();
+        let mut mock = mocks::mock_event();
         mock.name += "2";
-        mock.channel += "2";
-        if let Err(..) = repo.insert(mock) {
+        mock.channel += 1;
+        if let Err(..) = repo.insert_channel(Channel {
+            id: 1,
+            name: mocks::mock_channel().name + "2",
+        }) {
+            unreachable!("channel must be created for this test")
+        }
+        if let Err(..) = repo.insert_event(mock) {
             unreachable!("event must be created for this test")
         }
 
-        let mut mock = mocks::mock_event_creation();
+        let mut mock = mocks::mock_event();
         mock.name += "3";
-        if let Err(..) = repo.insert(mock) {
+        if let Err(..) = repo.insert_event(mock) {
             unreachable!("event must be created for this test")
         }
 
         // Testing find_all_events here --
         let req = Request {
-            channel: mocks::mock_event_creation().channel,
+            channel: mocks::mock_channel().name,
         };
 
         let result = execute(repo, req);

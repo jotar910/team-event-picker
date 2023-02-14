@@ -45,15 +45,18 @@ pub trait Repository: Send + Sync {
     fn transition(&self) -> Box<dyn Transition>;
 
     fn find(&self, id: u32) -> Result<Event, FindError>;
+    fn find_by_name(&self, name: String) -> Result<Event, FindError>;
     fn find_all(&self, channel: String) -> Result<Vec<Event>, FindAllError>;
-    fn insert(&self, event_data: EventCreation) -> Result<Event, InsertError>;
     fn update(&self, id: u32, event_data: EventCreation) -> Result<Event, UpdateError>;
     fn delete(&self, id: u32) -> Result<Event, DeleteError>;
 
+    fn insert_event(&self, event: Event) -> Result<Event, InsertError>;
     fn update_event(&self, event: Event) -> Result<(), UpdateError>;
 
-    fn find_channel(&self, ids: u32) -> Result<Channel, FindError>;
+    fn find_channel(&self, id: u32) -> Result<Channel, FindError>;
+    fn find_channel_by_name(&self, name: String) -> Result<Channel, FindError>;
     fn find_all_channels(&self) -> Result<Vec<Channel>, FindAllError>;
+    fn insert_channel(&self, channel: Channel) -> Result<Channel, InsertError>;
 
     fn find_user(&self, id: u32) -> Result<User, FindError>;
     fn find_users(&self, ids: Vec<u32>) -> Result<Vec<User>, FindAllError>;
@@ -88,24 +91,6 @@ impl InMemoryRepository {
         lock.iter()
             .find(|&channel| channel.name == name)
             .map(|channel| channel.clone())
-    }
-
-    fn insert_channel(&self, name: String) -> Result<u32, InsertError> {
-        let mut lock: MutexGuard<Vec<Channel>> = match self.channels.lock() {
-            Ok(lock) => lock,
-            _ => return Err(InsertError::Unknown),
-        };
-
-        if let Some(channel) = lock.iter().find(|&channel| channel.name == name) {
-            return Ok(channel.id);
-        }
-
-        let id = lock.len() as u32;
-        let channel = Channel { id, name };
-
-        lock.push(channel);
-
-        Ok(id)
     }
 
     fn insert_users(&self, names: Vec<String>) -> Result<Vec<u32>, InsertError> {
@@ -194,13 +179,22 @@ impl Repository for InMemoryRepository {
             Ok(lock) => lock,
             _ => return Err(FindError::Unknown),
         };
-        match lock.iter().find(|&event| event.id == id) {
-            Some(event) => {
-                if event.deleted {
-                    return Err(FindError::NotFound);
-                }
-                Ok(event.clone())
-            }
+        match lock.iter().find(|&event| event.id == id && !event.deleted) {
+            Some(event) => Ok(event.clone()),
+            _ => Err(FindError::NotFound),
+        }
+    }
+
+    fn find_by_name(&self, name: String) -> Result<Event, FindError> {
+        let lock = match self.events.lock() {
+            Ok(lock) => lock,
+            _ => return Err(FindError::Unknown),
+        };
+        match lock
+            .iter()
+            .find(|&event| event.name == name && !event.deleted)
+        {
+            Some(event) => Ok(event.clone()),
             _ => Err(FindError::NotFound),
         }
     }
@@ -219,44 +213,6 @@ impl Repository for InMemoryRepository {
             .filter(|event| event.channel == channel.id)
             .map(|event| event.clone())
             .collect())
-    }
-
-    fn insert(&self, event_data: EventCreation) -> Result<Event, InsertError> {
-        let mut lock = match self.events.lock() {
-            Ok(lock) => lock,
-            _ => return Err(InsertError::Unknown),
-        };
-
-        for existing_event in lock.iter_mut() {
-            if existing_event.name == event_data.name {
-                if existing_event.deleted {
-                    return Ok(self
-                        .update_event(existing_event, event_data)
-                        .map_err(|error| match error {
-                            UpdateError::Conflict => InsertError::Conflict,
-                            UpdateError::NotFound | UpdateError::Unknown => InsertError::Unknown,
-                        })?);
-                }
-                return Err(InsertError::Conflict);
-            }
-        }
-
-        let id = lock.len() as u32;
-        let event = Event {
-            id,
-            name: event_data.name,
-            date: event_data.date,
-            repeat: event_data.repeat,
-            participants: self.insert_users(event_data.participants)?,
-            channel: self.insert_channel(event_data.channel)?,
-            prev_pick: 0,
-            cur_pick: 0,
-            deleted: false,
-        };
-
-        lock.push(event.clone());
-
-        Ok(event)
     }
 
     fn update(&self, id: u32, event_data: EventCreation) -> Result<Event, UpdateError> {
@@ -309,6 +265,26 @@ impl Repository for InMemoryRepository {
         }
     }
 
+    fn insert_event(&self, event: Event) -> Result<Event, InsertError> {
+        match self.find_by_name(event.name.clone()) {
+            Ok(..) => return Err(InsertError::Conflict),
+            Err(error) if error != FindError::NotFound => return Err(InsertError::Unknown),
+            _ => (),
+        };
+
+        let mut lock = match self.events.lock() {
+            Ok(lock) => lock,
+            _ => return Err(InsertError::Unknown),
+        };
+
+        let mut event = event.clone();
+        event.id = lock.len() as u32;
+
+        lock.push(event.clone());
+
+        Ok(event)
+    }
+
     fn update_event(&self, event: Event) -> Result<(), UpdateError> {
         let mut lock = match self.events.lock() {
             Ok(lock) => lock,
@@ -352,12 +328,43 @@ impl Repository for InMemoryRepository {
         }
     }
 
+    fn find_channel_by_name(&self, name: String) -> Result<Channel, FindError> {
+        let lock = match self.channels.lock() {
+            Ok(lock) => lock,
+            _ => return Err(FindError::Unknown),
+        };
+        match lock.iter().find(|&channel| channel.name == name) {
+            Some(channel) => Ok(channel.clone()),
+            _ => Err(FindError::NotFound),
+        }
+    }
+
     fn find_all_channels(&self) -> Result<Vec<Channel>, FindAllError> {
         let lock = match self.channels.lock() {
             Ok(lock) => lock,
             _ => return Err(FindAllError::Unknown),
         };
         Ok(lock.iter().map(|channel| channel.clone()).collect())
+    }
+
+    fn insert_channel(&self, channel: Channel) -> Result<Channel, InsertError> {
+        let mut lock: MutexGuard<Vec<Channel>> = match self.channels.lock() {
+            Ok(lock) => lock,
+            _ => return Err(InsertError::Unknown),
+        };
+
+        if let Some(..) = lock.iter().find(|&c| c.name == channel.name) {
+            return Err(InsertError::Conflict);
+        }
+
+        let channel = Channel {
+            id: lock.len() as u32,
+            name: channel.name,
+        };
+
+        lock.push(channel.clone());
+
+        Ok(channel)
     }
 
     fn find_user(&self, id: u32) -> Result<User, FindError> {
@@ -441,7 +448,7 @@ impl Repository for InMemoryRepository {
             added_users.push(user.clone());
             lock.push(user);
         }
-        
+
         Ok(added_users)
     }
 
@@ -513,76 +520,6 @@ mod tests {
     use crate::domain::mocks;
 
     #[test]
-    fn it_should_return_the_id_for_the_created_event() {
-        let repo = InMemoryRepository::new();
-
-        let result = repo.insert(mocks::mock_event_creation());
-
-        match result {
-            Ok(Event { id, .. }) => assert_eq!(id, 0),
-            _ => unreachable!(),
-        }
-    }
-
-    #[test]
-    fn it_should_create_new_participants_when_creating_event() {
-        let repo = InMemoryRepository::new();
-
-        let result = repo.insert(mocks::mock_event_creation());
-
-        match result {
-            Ok(Event { participants, .. }) => assert_eq!(participants, vec![0, 1]),
-            _ => unreachable!(),
-        }
-    }
-
-    #[test]
-    fn it_should_use_existing_participants_when_creating_event() {
-        let repo = InMemoryRepository::new();
-
-        let mut creation = mocks::mock_event_creation();
-        creation.participants[0] = "Joana".to_string();
-
-        let result = repo.insert(creation);
-
-        match result {
-            Ok(Event { participants, .. }) => assert_eq!(participants, vec![0, 0]),
-            _ => unreachable!(),
-        }
-
-        // New event creation ---
-
-        let mut creation = mocks::mock_event_creation();
-        creation.name += "2";
-
-        let result = repo.insert(creation);
-
-        match result {
-            Ok(Event { participants, .. }) => assert_eq!(participants, vec![1, 0]),
-            _ => unreachable!(),
-        }
-    }
-
-    #[test]
-    fn it_should_return_conflict_when_created_events_with_the_same_name() {
-        let repo = InMemoryRepository::new();
-
-        let result = repo.insert(mocks::mock_event_creation());
-
-        match result {
-            Ok(Event { id, .. }) => assert_eq!(id, 0),
-            _ => unreachable!(),
-        }
-
-        let result = repo.insert(mocks::mock_event_creation());
-
-        match result {
-            Err(err) => assert_eq!(err, InsertError::Conflict),
-            _ => unreachable!(),
-        }
-    }
-
-    #[test]
     fn it_should_return_not_found_error_when_find_event_does_not_exist() {
         let repo = InMemoryRepository::new();
 
@@ -598,16 +535,16 @@ mod tests {
     fn it_should_return_the_event_when_find_is_called_with_an_existing_id() {
         let repo = InMemoryRepository::new();
 
-        let mock = mocks::mock_event_creation();
-        let result = repo.insert(mock);
+        let mock = mocks::mock_event();
+        let result = repo.insert_event(mock);
 
         if let Err(_) = result {
             unreachable!("event must be created")
         }
 
-        let mut mock = mocks::mock_event_creation();
+        let mut mock = mocks::mock_event();
         mock.name += " 2";
-        let result = repo.insert(mock);
+        let result = repo.insert_event(mock);
 
         if let Err(_) = result {
             unreachable!("event must be created")
@@ -627,25 +564,36 @@ mod tests {
     fn it_should_return_all_the_events_for_a_given_channel_when_find_all() {
         let repo = InMemoryRepository::new();
 
-        let mock = mocks::mock_event_creation();
-        let result = repo.insert(mock);
+        if let Err(_) = repo.insert_channel(mocks::mock_channel()) {
+            unreachable!("channel must be created")
+        }
+
+        if let Err(_) = repo.insert_channel(Channel {
+            id: 1,
+            name: mocks::mock_channel().name + "2",
+        }) {
+            unreachable!("channel must be created")
+        }
+
+        let mock = mocks::mock_event();
+        let result = repo.insert_event(mock);
 
         if let Err(_) = result {
             unreachable!("event must be created")
         }
 
-        let mut mock = mocks::mock_event_creation();
+        let mut mock = mocks::mock_event();
         mock.name += "2";
-        mock.channel += "2";
-        let result = repo.insert(mock);
+        mock.channel = 1;
+        let result = repo.insert_event(mock);
 
         if let Err(_) = result {
             unreachable!("event must be created")
         }
 
-        let mut mock = mocks::mock_event_creation();
+        let mut mock = mocks::mock_event();
         mock.name += "3";
-        let result = repo.insert(mock);
+        let result = repo.insert_event(mock);
 
         if let Err(_) = result {
             unreachable!("event must be created")
@@ -668,13 +616,13 @@ mod tests {
     fn it_should_find_participants_that_have_the_same_ids_as_the_provided() {
         let repo = InMemoryRepository::new();
 
-        let mut mock = mocks::mock_event_creation();
-        mock.participants.push("Francisca".to_string());
-        mock.participants.push("Simão".to_string());
-        let result = repo.insert(mock);
-
-        if let Err(_) = result {
-            unreachable!("event must be created")
+        if let Err(_) = repo.insert_users(vec![
+            "João".to_string(),
+            "Joana".to_string(),
+            "Francisca".to_string(),
+            "Simão".to_string(),
+        ]) {
+            unreachable!("users must be created")
         }
 
         // Testing find_participants here ---
@@ -682,8 +630,8 @@ mod tests {
         let result = repo.find_users(vec![1, 2]);
 
         match result {
-            Ok(participants) => assert_eq!(
-                participants,
+            Ok(users) => assert_eq!(
+                users,
                 vec![
                     User {
                         id: 1,
@@ -703,7 +651,7 @@ mod tests {
     fn it_should_update_event_with_the_provided_data() {
         let repo = InMemoryRepository::new();
 
-        if let Err(..) = repo.insert(mocks::mock_event_creation()) {
+        if let Err(..) = repo.insert_event(mocks::mock_event()) {
             unreachable!("event must be created")
         }
 
@@ -724,14 +672,14 @@ mod tests {
     fn it_should_return_conflict_error_when_name_already_exists_while_updating_an_event() {
         let repo = InMemoryRepository::new();
 
-        if let Err(..) = repo.insert(mocks::mock_event_creation()) {
+        if let Err(..) = repo.insert_event(mocks::mock_event()) {
             unreachable!("event must be created")
         }
 
-        let mut mock = mocks::mock_event_creation();
+        let mut mock = mocks::mock_event();
         mock.name += "2";
 
-        if let Err(..) = repo.insert(mock) {
+        if let Err(..) = repo.insert_event(mock) {
             unreachable!("event must be created")
         }
 
@@ -761,15 +709,15 @@ mod tests {
     fn it_should_return_the_list_of_all_channels_on_find_all_channels() {
         let repo = InMemoryRepository::new();
 
-        if let Err(_) = repo.insert(mocks::mock_event_creation()) {
-            unreachable!("event must be created")
+        if let Err(_) = repo.insert_channel(mocks::mock_channel()) {
+            unreachable!("channel must be created")
         }
 
-        let mut mock = mocks::mock_event_creation();
-        mock.name += "2";
-        mock.channel += "2";
-        if let Err(_) = repo.insert(mock) {
-            unreachable!("event must be created")
+        if let Err(_) = repo.insert_channel(Channel {
+            id: 1,
+            name: mocks::mock_channel().name + "2",
+        }) {
+            unreachable!("channel must be created")
         }
 
         // Testing find_all_channels here ---
@@ -792,7 +740,7 @@ mod tests {
     fn it_should_delete_an_event_by_id() {
         let repo = InMemoryRepository::new();
 
-        if let Err(_) = repo.insert(mocks::mock_event_creation()) {
+        if let Err(_) = repo.insert_event(mocks::mock_event()) {
             unreachable!("event must be created")
         }
 

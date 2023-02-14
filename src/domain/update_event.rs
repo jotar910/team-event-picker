@@ -72,9 +72,7 @@ mod tests {
     fn it_should_return_the_id_for_the_updated_event() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        if let Err(..) = repo.clone().insert(mocks::mock_event_creation()) {
-            unreachable!("event must exist")
-        }
+        mocks::insert_mock_event(repo.clone());
 
         // Testing update here
 
@@ -119,14 +117,12 @@ mod tests {
     fn it_should_return_conflict_error_when_the_event_to_update_does_not_exist() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        if let Err(..) = repo.clone().insert(mocks::mock_event_creation()) {
-            unreachable!("event must exist")
-        }
+        mocks::insert_mock_event(repo.clone());
 
-        let mut mock = mocks::mock_event_creation();
+        let mut mock = mocks::mock_event();
         mock.name += "2";
 
-        if let Err(..) = repo.clone().insert(mock) {
+        if let Err(..) = repo.clone().insert_event(mock) {
             unreachable!("event must exist")
         }
 

@@ -60,14 +60,14 @@ mod tests {
     fn it_should_update_participants() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        match repo.insert(mocks::mock_event_creation()) {
-            Ok(Event { participants, .. }) => assert_eq!(participants, vec![0, 1]),
-            _ => unreachable!("event must be created for this test"),
-        }
+        mocks::insert_mock_event(repo.clone());
 
         // Testing update_participants here ---
 
-        let req = Request { event: 0, participants: mocks::mock_users_names() };
+        let req = Request {
+            event: 0,
+            participants: mocks::mock_users_names(),
+        };
 
         let result = execute(repo.clone(), req);
 
