@@ -44,10 +44,10 @@ pub trait Repository: Send + Sync {
     fn find(&self, id: u32) -> Result<Event, FindError>;
     fn find_by_name(&self, name: String) -> Result<Event, FindError>;
     fn find_all(&self, channel: String) -> Result<Vec<Event>, FindAllError>;
-    fn delete(&self, id: u32) -> Result<Event, DeleteError>;
-
+    
     fn insert_event(&self, event: Event) -> Result<Event, InsertError>;
     fn update_event(&self, event: Event) -> Result<(), UpdateError>;
+    fn delete_event(&self, id: u32) -> Result<Event, DeleteError>;
 
     fn find_channel(&self, id: u32) -> Result<Channel, FindError>;
     fn find_channel_by_name(&self, name: String) -> Result<Channel, FindError>;
@@ -136,24 +136,6 @@ impl Repository for InMemoryRepository {
             .collect())
     }
 
-    fn delete(&self, id: u32) -> Result<Event, DeleteError> {
-        let mut lock = match self.events.lock() {
-            Ok(lock) => lock,
-            _ => return Err(DeleteError::Unknown),
-        };
-
-        match lock
-            .iter_mut()
-            .find(|event| event.id == id && !event.deleted)
-        {
-            Some(event) => {
-                event.deleted = true;
-                Ok(event.clone())
-            }
-            None => Err(DeleteError::NotFound),
-        }
-    }
-
     fn insert_event(&self, event: Event) -> Result<Event, InsertError> {
         match self.find_by_name(event.name.clone()) {
             Ok(..) => return Err(InsertError::Conflict),
@@ -204,6 +186,24 @@ impl Repository for InMemoryRepository {
         *event_to_update = event;
 
         Ok(())
+    }
+
+    fn delete_event(&self, id: u32) -> Result<Event, DeleteError> {
+        let mut lock = match self.events.lock() {
+            Ok(lock) => lock,
+            _ => return Err(DeleteError::Unknown),
+        };
+
+        match lock
+            .iter_mut()
+            .find(|event| event.id == id && !event.deleted)
+        {
+            Some(event) => {
+                event.deleted = true;
+                Ok(event.clone())
+            }
+            None => Err(DeleteError::NotFound),
+        }
     }
 
     fn find_channel(&self, id: u32) -> Result<Channel, FindError> {
@@ -593,7 +593,7 @@ mod tests {
 
         // Testing delete here ---
 
-        let result = repo.delete(0);
+        let result = repo.delete_event(0);
 
         match result {
             Ok(Event { id, .. }) => assert_eq!(id, 0),

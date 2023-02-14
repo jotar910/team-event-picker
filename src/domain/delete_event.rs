@@ -17,7 +17,7 @@ pub struct Response {
 }
 
 pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    let event = match repo.delete(req.id) {
+    let event = match repo.delete_event(req.id) {
         Err(err) => {
             return match err {
                 DeleteError::NotFound => Err(Error::NotFound),
