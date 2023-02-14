@@ -45,11 +45,6 @@ pub enum RepeatPeriod {
     Yearly,
 }
 
-pub struct ParticipantEdit {
-    pub event: u32,
-    pub participants: Vec<String>,
-}
-
 impl TryFrom<String> for RepeatPeriod {
     type Error = ();
 

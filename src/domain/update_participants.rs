@@ -1,18 +1,17 @@
 use std::sync::Arc;
 
-use crate::domain::entities::ParticipantEdit;
-use crate::repository::event::{Repository, UpdateError};
+use crate::domain::insert_participants;
+use crate::repository::event::{Repository, UpdateError, FindError};
 
 pub struct Request {
     pub event: u32,
     pub participants: Vec<String>,
 }
 
-impl From<Request> for ParticipantEdit {
+impl From<Request> for insert_participants::Request {
     fn from(value: Request) -> Self {
-        ParticipantEdit {
-            event: value.event,
-            participants: value.participants,
+        Self {
+            names: value.participants,
         }
     }
 }
@@ -27,23 +26,41 @@ pub enum Error {
 }
 
 pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    let event = match repo.update_participants(req.into()) {
-        Err(error) => {
-            return match error {
-                UpdateError::NotFound => Err(Error::NotFound),
-                UpdateError::Conflict | UpdateError::Unknown => Err(Error::Unknown),
-            }
-        }
-        Ok(event) => event,
-    };
-    Ok(Response { id: event.id })
+    let event_id = req.event;
+    let event = repo.clone().find(event_id);
+
+    if let Err(error) = event {
+        return Err(match error {
+            FindError::NotFound => Error::NotFound,
+            FindError::Unknown => Error::Unknown,
+        });
+    }
+
+    let mut event = event.unwrap();
+
+    event.participants = insert_participants::execute(repo.clone(), req.into())
+        .map_err(|err| match err {
+            insert_participants::Error::Unknown => Error::Unknown,
+        })?
+        .users
+        .iter()
+        .map(|user| user.id)
+        .collect();
+
+    match repo.update_event(event) {
+        Err(error) => match error {
+            UpdateError::NotFound => Err(Error::NotFound),
+            UpdateError::Conflict | UpdateError::Unknown => Err(Error::Unknown),
+        },
+        Ok(..) => Ok(Response { id: event_id }),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::mocks;
     use crate::domain::entities::Event;
+    use crate::domain::mocks;
     use crate::repository::event::InMemoryRepository;
 
     #[test]
@@ -57,7 +74,7 @@ mod tests {
 
         // Testing update_participants here ---
 
-        let req = mocks::mock_participant_update().into();
+        let req = mocks::mock_participants_update();
 
         let result = execute(repo.clone(), req);
 
@@ -69,15 +86,6 @@ mod tests {
         match repo.find(0) {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![2, 3, 1]),
             _ => unreachable!(),
-        }
-    }
-
-    impl From<ParticipantEdit> for Request {
-        fn from(value: ParticipantEdit) -> Self {
-            Self {
-                event: value.event,
-                participants: value.participants,
-            }
         }
     }
 }

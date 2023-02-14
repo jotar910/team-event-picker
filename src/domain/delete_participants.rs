@@ -1,20 +1,10 @@
 use std::sync::Arc;
 
-use crate::domain::entities::ParticipantEdit;
-use crate::repository::event::{DeleteError, Repository};
+use crate::repository::event::{FindAllError, FindError, Repository, UpdateError};
 
 pub struct Request {
     pub event: u32,
     pub participants: Vec<String>,
-}
-
-impl From<Request> for ParticipantEdit {
-    fn from(value: Request) -> Self {
-        ParticipantEdit {
-            event: value.event,
-            participants: value.participants,
-        }
-    }
 }
 
 pub struct Response {
@@ -28,10 +18,32 @@ pub enum Error {
 
 pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
     let event_id = req.event;
-    match repo.delete_participants(req.into()) {
+
+    let event = repo.find(event_id);
+
+    if let Err(error) = event {
+        return Err(match error {
+            FindError::NotFound => Error::NotFound,
+            FindError::Unknown => Error::Unknown,
+        });
+    }
+
+    let mut event = event.unwrap();
+
+    event.participants = repo
+        .find_users(event.participants.clone())
+        .map_err(|err| match err {
+            FindAllError::Unknown => Error::Unknown,
+        })?
+        .into_iter()
+        .filter(|participant| !req.participants.contains(&participant.name))
+        .map(|participant| participant.id)
+        .collect();
+
+    match repo.update_event(event) {
         Err(error) => match error {
-            DeleteError::NotFound => Err(Error::NotFound),
-            DeleteError::Unknown => Err(Error::Unknown),
+            UpdateError::NotFound => Err(Error::NotFound),
+            UpdateError::Conflict | UpdateError::Unknown => Err(Error::Unknown),
         },
         Ok(..) => Ok(Response { id: event_id }),
     }
@@ -55,7 +67,7 @@ mod tests {
 
         // Testing update_participants here ---
 
-        let req = mocks::mock_participant_update().into();
+        let req = mocks::mock_participants_update().into();
 
         let result = execute(repo.clone(), req);
 
@@ -70,8 +82,8 @@ mod tests {
         }
     }
 
-    impl From<ParticipantEdit> for Request {
-        fn from(value: ParticipantEdit) -> Self {
+    impl From<crate::domain::update_participants::Request> for Request {
+        fn from(value: crate::domain::update_participants::Request) -> Self {
             Self {
                 event: value.event,
                 participants: value.participants,
