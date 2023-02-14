@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::domain::insert_participants;
+use crate::domain::insert_users;
 use crate::repository::event::{Repository, UpdateError, FindError};
 
 pub struct Request {
@@ -8,7 +8,7 @@ pub struct Request {
     pub participants: Vec<String>,
 }
 
-impl From<Request> for insert_participants::Request {
+impl From<Request> for insert_users::Request {
     fn from(value: Request) -> Self {
         Self {
             names: value.participants,
@@ -38,9 +38,9 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
 
     let mut event = event.unwrap();
 
-    event.participants = insert_participants::execute(repo.clone(), req.into())
+    event.participants = insert_users::execute(repo.clone(), req.into())
         .map_err(|err| match err {
-            insert_participants::Error::Unknown => Error::Unknown,
+            insert_users::Error::Unknown => Error::Unknown,
         })?
         .users
         .iter()
@@ -74,7 +74,7 @@ mod tests {
 
         // Testing update_participants here ---
 
-        let req = mocks::mock_participants_update();
+        let req = Request { event: 0, participants: mocks::mock_users_names() };
 
         let result = execute(repo.clone(), req);
 

@@ -91,10 +91,10 @@ mod tests {
             _ => unreachable!(),
         }
 
-        // Testing insert_participants here ---
+        // Testing insert_users here ---
 
         let req = Request {
-            names: mocks::mock_participants_update().participants,
+            names: mocks::mock_users_names(),
         };
 
         let result = execute(repo, req);

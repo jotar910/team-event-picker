@@ -67,7 +67,7 @@ mod tests {
 
         // Testing update_participants here ---
 
-        let req = mocks::mock_participants_update().into();
+        let req = Request { event: 0, participants: mocks::mock_users_names() };
 
         let result = execute(repo.clone(), req);
 
@@ -79,15 +79,6 @@ mod tests {
         match repo.find(0) {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![0]),
             _ => unreachable!(),
-        }
-    }
-
-    impl From<crate::domain::update_participants::Request> for Request {
-        fn from(value: crate::domain::update_participants::Request) -> Self {
-            Self {
-                event: value.event,
-                participants: value.participants,
-            }
         }
     }
 }

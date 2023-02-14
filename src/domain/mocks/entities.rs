@@ -16,3 +16,11 @@ pub fn mock_channel() -> Channel {
         name: "Channel".to_string(),
     }
 }
+
+pub fn mock_users_names() -> Vec<String> {
+    vec![
+        "Francisca".to_string(),
+        "Simão".to_string(),
+        "Joana".to_string(),
+    ]
+}
