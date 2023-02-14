@@ -1,11 +1,8 @@
-use std::borrow::BorrowMut;
 use std::collections::HashSet;
 use std::sync::Mutex;
 use std::{collections::HashMap, sync::MutexGuard};
 
-use itertools::Itertools;
-
-use crate::domain::entities::{Channel, Event, EventCreation, EventPick, User};
+use crate::domain::entities::{Channel, Event, EventPick, User};
 
 #[derive(Debug, PartialEq)]
 pub enum FindError {
@@ -47,7 +44,6 @@ pub trait Repository: Send + Sync {
     fn find(&self, id: u32) -> Result<Event, FindError>;
     fn find_by_name(&self, name: String) -> Result<Event, FindError>;
     fn find_all(&self, channel: String) -> Result<Vec<Event>, FindAllError>;
-    fn update(&self, id: u32, event_data: EventCreation) -> Result<Event, UpdateError>;
     fn delete(&self, id: u32) -> Result<Event, DeleteError>;
 
     fn insert_event(&self, event: Event) -> Result<Event, InsertError>;
@@ -91,81 +87,6 @@ impl InMemoryRepository {
         lock.iter()
             .find(|&channel| channel.name == name)
             .map(|channel| channel.clone())
-    }
-
-    fn insert_users(&self, names: Vec<String>) -> Result<Vec<u32>, InsertError> {
-        let mut users: HashMap<String, Option<User>> =
-            names.iter().map(|name| (name.clone(), None)).collect();
-
-        self.fill_with_existing_users(users.borrow_mut())?;
-
-        let mut lock: MutexGuard<Vec<User>> = match self.users.lock() {
-            Ok(lock) => lock,
-            _ => return Err(InsertError::Unknown),
-        };
-
-        let start_id = lock.len() as u32;
-        let mut add_users: Vec<User> = vec![];
-        for name in names.iter().unique() {
-            let user = users.get(name).unwrap();
-            if let None = user {
-                add_users.push(User {
-                    id: start_id + add_users.len() as u32,
-                    name: name.to_string(),
-                })
-            }
-        }
-
-        let added_from_idx = lock.len();
-        for user in add_users.into_iter() {
-            lock.push(user);
-        }
-
-        for existing_user in lock.iter().skip(added_from_idx) {
-            users.insert(existing_user.name.clone(), Some(existing_user.to_owned()));
-        }
-
-        Ok(names
-            .into_iter()
-            .map(|name| users[&name].as_ref().unwrap().id)
-            .collect())
-    }
-
-    fn fill_with_existing_users(
-        &self,
-        users: &mut HashMap<String, Option<User>>,
-    ) -> Result<(), InsertError> {
-        let lock: MutexGuard<Vec<User>> = match self.users.lock() {
-            Ok(lock) => lock,
-            _ => return Err(InsertError::Unknown),
-        };
-
-        for existing_user in lock.iter() {
-            if !users.contains_key(&existing_user.name) {
-                continue;
-            }
-            users.insert(existing_user.name.clone(), Some(existing_user.clone()));
-        }
-
-        Ok(())
-    }
-
-    fn update_event(
-        &self,
-        event: &mut Event,
-        event_data: EventCreation,
-    ) -> Result<Event, UpdateError> {
-        event.name = event_data.name;
-        event.date = event_data.date;
-        event.repeat = event_data.repeat;
-        event.participants =
-            self.insert_users(event_data.participants)
-                .map_err(|error| match error {
-                    InsertError::Conflict => UpdateError::Conflict,
-                    InsertError::Unknown => UpdateError::Unknown,
-                })?;
-        event.deleted = false;
-        Ok(event.clone())
     }
 }
 
@@ -213,38 +134,6 @@ impl Repository for InMemoryRepository {
             .filter(|event| event.channel == channel.id)
             .map(|event| event.clone())
             .collect())
-    }
-
-    fn update(&self, id: u32, event_data: EventCreation) -> Result<Event, UpdateError> {
-        let mut lock = match self.events.lock() {
-            Ok(lock) => lock,
-            _ => return Err(UpdateError::Unknown),
-        };
-
-        let mut event_to_update: Option<&mut Event> = None;
-
-        for existing_event in lock.iter_mut() {
-            if existing_event.deleted {
-                continue;
-            }
-            if existing_event.id == id {
-                event_to_update = Some(existing_event);
-                continue;
-            }
-            if existing_event.name == event_data.name {
-                return Err(UpdateError::Conflict);
-            }
-        }
-
-        if let None = event_to_update {
-            return Err(UpdateError::NotFound);
-        }
-
-        let event = event_to_update.unwrap();
-
-        self.update_event(event, event_data)?;
-
-        Ok(event.clone())
     }
 
     fn delete(&self, id: u32) -> Result<Event, DeleteError> {
@@ -617,10 +506,22 @@ mod tests {
         let repo = InMemoryRepository::new();
 
         if let Err(_) = repo.insert_users(vec![
-            "João".to_string(),
-            "Joana".to_string(),
-            "Francisca".to_string(),
-            "Simão".to_string(),
+            User {
+                id: 0,
+                name: "João".to_string(),
+            },
+            User {
+                id: 0,
+                name: "Joana".to_string(),
+            },
+            User {
+                id: 0,
+                name: "Francisca".to_string(),
+            },
+            User {
+                id: 0,
+                name: "Simão".to_string(),
+            },
         ]) {
             unreachable!("users must be created")
         }
@@ -643,64 +544,6 @@ mod tests {
                     }
                 ]
             ),
-            _ => unreachable!(),
-        }
-    }
-
-    #[test]
-    fn it_should_update_event_with_the_provided_data() {
-        let repo = InMemoryRepository::new();
-
-        if let Err(..) = repo.insert_event(mocks::mock_event()) {
-            unreachable!("event must be created")
-        }
-
-        // Testing update here --
-
-        let mut mock = mocks::mock_event_creation();
-        mock.name = "Johny".to_string();
-
-        let result = repo.update(0, mock);
-
-        match result {
-            Ok(Event { name, .. }) => assert_eq!(name, "Johny"),
-            _ => unreachable!(),
-        }
-    }
-
-    #[test]
-    fn it_should_return_conflict_error_when_name_already_exists_while_updating_an_event() {
-        let repo = InMemoryRepository::new();
-
-        if let Err(..) = repo.insert_event(mocks::mock_event()) {
-            unreachable!("event must be created")
-        }
-
-        let mut mock = mocks::mock_event();
-        mock.name += "2";
-
-        if let Err(..) = repo.insert_event(mock) {
-            unreachable!("event must be created")
-        }
-
-        // Testing update here --
-
-        let result = repo.update(1, mocks::mock_event_creation());
-
-        match result {
-            Err(error) => assert_eq!(error, UpdateError::Conflict),
-            _ => unreachable!(),
-        }
-    }
-
-    #[test]
-    fn it_should_return_not_found_error_when_event_to_update_does_not_exist() {
-        let repo = InMemoryRepository::new();
-
-        let result = repo.update(0, mocks::mock_event_creation());
-
-        match result {
-            Err(error) => assert_eq!(error, UpdateError::NotFound),
             _ => unreachable!(),
         }
     }

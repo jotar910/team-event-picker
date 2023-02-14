@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
-use crate::repository::event::Repository;
-use crate::repository::event::UpdateError;
+use crate::repository::event::{FindError, Repository, UpdateError};
 
-use super::entities::{Event, EventCreation, RepeatPeriod};
+use crate::domain::entities::{Event, RepeatPeriod};
+use crate::domain::{insert_channel, insert_users};
 
+#[derive(Clone)]
 pub struct Request {
     pub id: u32,
     pub name: String,
@@ -14,19 +15,19 @@ pub struct Request {
     pub channel: String,
 }
 
-impl TryFrom<Request> for EventCreation {
-    type Error = ();
+impl From<Request> for insert_users::Request {
+    fn from(value: Request) -> Self {
+        Self {
+            names: value.participants,
+        }
+    }
+}
 
-    fn try_from(value: Request) -> Result<Self, Self::Error> {
-        let repeat = RepeatPeriod::try_from(value.repeat)?;
-
-        Ok(EventCreation {
-            repeat,
-            name: value.name,
-            date: value.date,
-            participants: value.participants,
-            channel: value.channel,
-        })
+impl From<Request> for insert_channel::Request {
+    fn from(value: Request) -> Self {
+        Self {
+            name: value.channel,
+        }
     }
 }
 
@@ -42,23 +43,61 @@ pub enum Error {
     Unknown,
 }
 
+impl From<insert_users::Error> for Error {
+    fn from(value: insert_users::Error) -> Self {
+        match value {
+            insert_users::Error::Unknown => Error::Unknown,
+        }
+    }
+}
+
+impl From<insert_channel::Error> for Error {
+    fn from(value: insert_channel::Error) -> Self {
+        match value {
+            insert_channel::Error::Unknown => Error::Unknown,
+        }
+    }
+}
+
 pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    let id = req.id;
-    let creation_data = match EventCreation::try_from(req) {
-        Ok(data) => data,
-        Err(..) => return Err(Error::BadRequest),
-    };
-    let tx = repo.transition();
-    match repo.update(id, creation_data) {
-        Ok(Event { id, .. }) => Ok(Response { id }),
-        Err(err) => {
-            tx.rollback();
-            Err(match err {
-                UpdateError::Conflict => Error::Conflict,
-                UpdateError::NotFound => Error::NotFound,
-                UpdateError::Unknown => Error::Unknown,
+    let event_id = req.id;
+    let existing_event = match repo.clone().find(event_id) {
+        Ok(event) => event,
+        Err(error) => {
+            return Err(match error {
+                FindError::NotFound => Error::NotFound,
+                FindError::Unknown => Error::Unknown,
             })
         }
+    };
+
+    let mut event = Event {
+        id: existing_event.id,
+        name: req.name.clone(),
+        date: req.date.clone(),
+        repeat: RepeatPeriod::try_from(req.repeat.clone()).map_err(|_| Error::BadRequest)?,
+        participants: vec![],
+        channel: existing_event.channel,
+        prev_pick: 0,
+        cur_pick: 0,
+        deleted: false,
+    };
+    event.participants = insert_users::execute(repo.clone(), req.clone().into())?
+        .users
+        .iter()
+        .map(|user| user.id)
+        .collect();
+    event.channel = insert_channel::execute(repo.clone(), req.into())?
+        .channel
+        .id;
+
+    match repo.update_event(event) {
+        Ok(..) => Ok(Response { id: event_id }),
+        Err(err) => Err(match err {
+            UpdateError::Conflict => Error::Conflict,
+            UpdateError::NotFound => Error::NotFound,
+            UpdateError::Unknown => Error::Unknown,
+        }),
     }
 }
 
@@ -89,6 +128,11 @@ mod tests {
     #[test]
     fn it_should_return_bad_request_error_on_invalid_request_payload_for_repeat_field() {
         let repo = Arc::new(InMemoryRepository::new());
+
+        mocks::insert_mock_event(repo.clone());
+
+        // Testing update here
+        
         let mut req = mocks::mock_update_event_request();
         req.repeat = "test".to_string();
 
@@ -137,5 +181,43 @@ mod tests {
             Err(err) => assert_eq!(err, Error::Conflict),
             _ => unreachable!(),
         };
+    }
+
+    #[test]
+    fn it_should_update_event_with_the_provided_data() {
+        let repo = Arc::new(InMemoryRepository::new());
+
+        mocks::insert_mock_event(repo.clone());
+
+        // Testing update here --
+
+        let mut req = mocks::mock_update_event_request();
+        req.name = "Johny".to_string();
+
+        let result = execute(repo.clone(), req);
+
+        match result {
+            Ok(Response { id }) => assert_eq!(id, 0),
+            _ => unreachable!(),
+        };
+
+        match repo.find(0) {
+            Ok(Event { name, .. }) => assert_eq!(name, "Johny"),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn it_should_return_not_found_error_when_event_to_update_does_not_exist() {
+        let repo = Arc::new(InMemoryRepository::new());
+
+        let req = mocks::mock_update_event_request();
+
+        let result = execute(repo, req);
+
+        match result {
+            Err(error) => assert_eq!(error, Error::NotFound),
+            _ => unreachable!(),
+        }
     }
 }

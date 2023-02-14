@@ -11,14 +11,6 @@ pub struct Event {
     pub deleted: bool,
 }
 
-pub struct EventCreation {
-    pub name: String,
-    pub date: String,
-    pub repeat: RepeatPeriod,
-    pub participants: Vec<String>,
-    pub channel: String,
-}
-
 pub struct EventPick {
     pub event: u32,
     pub pick: u32,
