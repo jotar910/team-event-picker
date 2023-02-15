@@ -1,4 +1,11 @@
-#[derive(Clone)]
+use serde::{Deserialize, Serialize};
+
+pub trait HasId {
+    fn set_id(&mut self, id: u32);
+    fn get_id(&self) -> u32;
+}
+
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Event {
     pub id: u32,
     pub name: String,
@@ -11,24 +18,54 @@ pub struct Event {
     pub deleted: bool,
 }
 
+impl HasId for Event {
+    fn set_id(&mut self, id: u32) {
+        self.id = id;
+    }
+
+    fn get_id(&self) -> u32 {
+        self.id
+    }
+}
+
 pub struct EventPick {
     pub event: u32,
     pub pick: u32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct Channel {
     pub id: u32,
     pub name: String,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+impl HasId for Channel {
+    fn set_id(&mut self, id: u32) {
+        self.id = id;
+    }
+
+    fn get_id(&self) -> u32 {
+        self.id
+    }
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct User {
     pub id: u32,
     pub name: String,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+impl HasId for User {
+    fn set_id(&mut self, id: u32) {
+        self.id = id;
+    }
+
+    fn get_id(&self) -> u32 {
+        self.id
+    }
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub enum RepeatPeriod {
     None,
     Daily,
