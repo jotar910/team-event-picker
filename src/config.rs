@@ -9,6 +9,10 @@ pub struct Config {
     #[clap(long, env)]
     pub database_name: String,
 
+    /// The signature of the slack workspace that uses this application.
+    #[clap(long, env)]
+    pub signature: String,
+
     /// The PORT number for the server address.
     #[clap(long, env)]
     pub port: u16,

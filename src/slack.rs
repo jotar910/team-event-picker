@@ -1,15 +1,16 @@
 use std::sync::Arc;
 
-use axum::{
-    extract::{Form, State},
-    routing, Json, Router, Server,
-};
+use chrono::prelude::Utc;
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
+
+use axum::{extract::State, routing, Json, Router, Server};
 
 use serde::{self, Deserialize, Serialize};
 
-use hyper::Result;
+use hyper::{HeaderMap, Result};
 
-use log::info;
+use log::{debug, info};
 
 use crate::{
     domain::{
@@ -22,6 +23,7 @@ use crate::{
 use super::config::Config;
 
 pub struct AppState {
+    secret: String,
     repo: Arc<dyn Repository>,
 }
 
@@ -43,7 +45,7 @@ pub async fn serve(config: Config) -> Result<()> {
 
     Server::bind(&format!("0.0.0.0:{}", config.port).parse().unwrap())
         .serve(
-            app.with_state(Arc::new(AppState { repo: repo.clone() }))
+            app.with_state(Arc::new(AppState { secret: config.signature, repo: repo.clone() }))
                 .into_make_service(),
         )
         .await
@@ -76,9 +78,18 @@ pub struct CommandResponse {
 
 // basic handler that responds with a string
 pub async fn handle_command(
+    headers: HeaderMap,
     State(state): State<Arc<AppState>>,
-    Form(payload): Form<CommandRequest>,
+    body: String,
 ) -> Json<CommandResponse> {
+    if !verify_signature(headers, body.clone(), &state.secret) {
+        return Json(CommandResponse {
+            response_type: "in_channel".to_string(),
+            text: "Failed to authenticate".to_string(),
+        });
+    }
+
+    let payload = serde_urlencoded::from_str::<CommandRequest>(&body).unwrap();
     let args = payload.text.trim();
     let space_idx = args.find(' ').unwrap_or(args.len());
 
@@ -132,6 +143,57 @@ pub async fn handle_command(
         response_type: "in_channel".to_string(),
         text: result,
     })
+}
+
+fn calculate_signature(base_str: &str, secret: &str) -> String {
+    let mut mac =
+        Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC can take key of any size");
+    mac.update(base_str.as_bytes());
+    let result = mac.finalize().into_bytes();
+    format!("v0={}", hex::encode(result))
+}
+
+fn verify_signature(headers: HeaderMap, body: String, secret: &str) -> bool {
+    if !headers.contains_key("x-slack-request-timestamp")
+        || !headers.contains_key("x-slack-signature")
+    {
+        debug!("unable to find authentication headers");
+        return false;
+    }
+
+    let timestamp: i64 = headers
+        .get("x-slack-request-timestamp")
+        .unwrap()
+        .to_str()
+        .unwrap_or("")
+        .parse()
+        .unwrap_or(0);
+
+    // verify that the timestamp does not differ from local time by more than five minutes
+    if (Utc::now().timestamp() - timestamp).abs() > 300 {
+        debug!("request is too old");
+        return false;
+    }
+
+    let base_str = format!("v0:{}:{}", timestamp, body);
+
+    let expected_signature = calculate_signature(&base_str, secret);
+
+    let received_signature: String = headers
+        .get("x-slack-signature")
+        .unwrap()
+        .to_str()
+        .unwrap_or("")
+        .to_string();
+
+    // match the two signatures
+    if expected_signature != received_signature {
+        debug!("webhook signature mismatch");
+        return false;
+    }
+
+    debug!("webhook signature verified");
+    true
 }
 
 async fn handle_pick(repo: Arc<dyn Repository>, args: &str) -> String {
@@ -216,7 +278,10 @@ async fn handle_edit_participants(
 
     let args = args[space_idx..].trim();
     let participants = match serde_json::from_str::<Vec<String>>(args) {
-        Ok(req) => req.iter().map(|v| v.trim().to_string()).collect::<Vec<String>>(),
+        Ok(req) => req
+            .iter()
+            .map(|v| v.trim().to_string())
+            .collect::<Vec<String>>(),
         Err(error) => return format!("{:?}", error),
     };
     match update_participants::execute(
@@ -270,7 +335,10 @@ async fn handle_delete_participants(
 
     let args = args[space_idx..].trim();
     let participants = match serde_json::from_str::<Vec<String>>(args.trim()) {
-        Ok(req) => req.iter().map(|v| v.trim().to_string()).collect::<Vec<String>>(),
+        Ok(req) => req
+            .iter()
+            .map(|v| v.trim().to_string())
+            .collect::<Vec<String>>(),
         Err(error) => return format!("{:?}", error),
     };
     match delete_participants::execute(
