@@ -59,9 +59,9 @@ impl From<insert_channel::Error> for Error {
     }
 }
 
-pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
+pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
     let event_id = req.id;
-    let existing_event = match repo.clone().find_event(event_id) {
+    let existing_event = match repo.clone().find_event(event_id).await {
         Ok(event) => event,
         Err(error) => {
             return Err(match error {
@@ -82,16 +82,18 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
         cur_pick: 0,
         deleted: false,
     };
-    event.participants = insert_users::execute(repo.clone(), req.clone().into())?
+    event.participants = insert_users::execute(repo.clone(), req.clone().into())
+        .await?
         .users
         .iter()
         .map(|user| user.id)
         .collect();
-    event.channel = insert_channel::execute(repo.clone(), req.into())?
+    event.channel = insert_channel::execute(repo.clone(), req.into())
+        .await?
         .channel
         .id;
 
-    match repo.update_event(event) {
+    match repo.update_event(event).await {
         Ok(..) => Ok(Response { id: event_id }),
         Err(err) => Err(match err {
             UpdateError::Conflict => Error::Conflict,
@@ -107,17 +109,17 @@ mod tests {
     use crate::domain::mocks;
     use crate::repository::event::InMemoryRepository;
 
-    #[test]
-    fn it_should_return_the_id_for_the_updated_event() {
+    #[tokio::test]
+    async fn it_should_return_the_id_for_the_updated_event() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        mocks::insert_mock_event(repo.clone());
+        mocks::insert_mock_event(repo.clone()).await;
 
         // Testing update here
 
         let req = mocks::mock_update_event_request();
 
-        let result = execute(repo, req);
+        let result = execute(repo, req).await;
 
         match result {
             Ok(Response { id }) => assert_eq!(id, 0),
@@ -125,18 +127,18 @@ mod tests {
         };
     }
 
-    #[test]
-    fn it_should_return_bad_request_error_on_invalid_request_payload_for_repeat_field() {
+    #[tokio::test]
+    async fn it_should_return_bad_request_error_on_invalid_request_payload_for_repeat_field() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        mocks::insert_mock_event(repo.clone());
+        mocks::insert_mock_event(repo.clone()).await;
 
         // Testing update here
 
         let mut req = mocks::mock_update_event_request();
         req.repeat = "test".to_string();
 
-        let result = execute(repo, req);
+        let result = execute(repo, req).await;
 
         match result {
             Err(err) => assert_eq!(err, Error::BadRequest),
@@ -144,12 +146,12 @@ mod tests {
         };
     }
 
-    #[test]
-    fn it_should_return_not_found_error_when_the_event_to_update_does_not_exist() {
+    #[tokio::test]
+    async fn it_should_return_not_found_error_when_the_event_to_update_does_not_exist() {
         let repo = Arc::new(InMemoryRepository::new());
         let req = mocks::mock_update_event_request();
 
-        let result = execute(repo, req);
+        let result = execute(repo, req).await;
 
         match result {
             Err(err) => assert_eq!(err, Error::NotFound),
@@ -157,16 +159,16 @@ mod tests {
         };
     }
 
-    #[test]
-    fn it_should_return_conflict_error_when_the_event_to_update_does_not_exist() {
+    #[tokio::test]
+    async fn it_should_return_conflict_error_when_the_event_to_update_does_not_exist() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        mocks::insert_mock_event(repo.clone());
+        mocks::insert_mock_event(repo.clone()).await;
 
         let mut mock = mocks::mock_event();
         mock.name += "2";
 
-        if let Err(..) = repo.clone().insert_event(mock) {
+        if let Err(..) = repo.clone().insert_event(mock).await {
             unreachable!("event must exist")
         }
 
@@ -175,7 +177,7 @@ mod tests {
         let mut req = mocks::mock_update_event_request();
         req.id = 1;
 
-        let result = execute(repo, req);
+        let result = execute(repo, req).await;
 
         match result {
             Err(err) => assert_eq!(err, Error::Conflict),
@@ -183,37 +185,37 @@ mod tests {
         };
     }
 
-    #[test]
-    fn it_should_update_event_with_the_provided_data() {
+    #[tokio::test]
+    async fn it_should_update_event_with_the_provided_data() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        mocks::insert_mock_event(repo.clone());
+        mocks::insert_mock_event(repo.clone()).await;
 
         // Testing update here --
 
         let mut req = mocks::mock_update_event_request();
         req.name = "Johny".to_string();
 
-        let result = execute(repo.clone(), req);
+        let result = execute(repo.clone(), req).await;
 
         match result {
             Ok(Response { id }) => assert_eq!(id, 0),
             _ => unreachable!(),
         };
 
-        match repo.find_event(0) {
+        match repo.find_event(0).await {
             Ok(Event { name, .. }) => assert_eq!(name, "Johny"),
             _ => unreachable!(),
         }
     }
 
-    #[test]
-    fn it_should_return_not_found_error_when_event_to_update_does_not_exist() {
+    #[tokio::test]
+    async fn it_should_return_not_found_error_when_event_to_update_does_not_exist() {
         let repo = Arc::new(InMemoryRepository::new());
 
         let req = mocks::mock_update_event_request();
 
-        let result = execute(repo, req);
+        let result = execute(repo, req).await;
 
         match result {
             Err(error) => assert_eq!(error, Error::NotFound),

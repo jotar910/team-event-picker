@@ -18,11 +18,11 @@ pub enum Error {
     Unknown,
 }
 
-pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
+pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
     let mut users_map: HashMap<String, Option<User>> =
         req.names.iter().map(|name| (name.clone(), None)).collect();
 
-    fill_with_existing_users(repo.clone(), &req.names, &mut users_map)?;
+    fill_with_existing_users(repo.clone(), &req.names, &mut users_map).await?;
 
     let mut add_users: Vec<User> = vec![];
     for name in req.names.iter().unique() {
@@ -35,9 +35,12 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
         }
     }
 
-    let add_users: Vec<User> = repo.insert_users(add_users).map_err(|error| match error {
-        InsertError::Conflict | InsertError::Unknown => Error::Unknown,
-    })?;
+    let add_users: Vec<User> = repo
+        .insert_users(add_users)
+        .await
+        .map_err(|error| match error {
+            InsertError::Conflict | InsertError::Unknown => Error::Unknown,
+        })?;
 
     for existing_user in add_users.into_iter() {
         users_map.insert(existing_user.name.clone(), Some(existing_user));
@@ -52,13 +55,14 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
     })
 }
 
-fn fill_with_existing_users(
+async fn fill_with_existing_users<'a>(
     repo: Arc<dyn Repository>,
-    names: &Vec<String>,
-    users_to_fill: &mut HashMap<String, Option<User>>,
+    names: &'a Vec<String>,
+    users_to_fill: &'a mut HashMap<String, Option<User>>,
 ) -> Result<(), Error> {
     let users = repo
         .find_users_by_name(names.clone())
+        .await
         .map_err(|error| match error {
             FindAllError::Unknown => Error::Unknown,
         })?;
@@ -79,11 +83,11 @@ mod tests {
     use crate::domain::mocks;
     use crate::repository::event::InMemoryRepository;
 
-    #[test]
-    fn it_should_update_participants_for_the_given_event() {
+    #[tokio::test]
+    async fn it_should_update_participants_for_the_given_event() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        let result = mocks::insert_mock_event(repo.clone());
+        let result = mocks::insert_mock_event(repo.clone()).await;
 
         assert_eq!(result.participants, vec![0, 1]);
 
@@ -93,7 +97,7 @@ mod tests {
             names: mocks::mock_users_names(),
         };
 
-        let result = execute(repo, req);
+        let result = execute(repo, req).await;
 
         match result {
             Ok(Response { users }) => assert_eq!(

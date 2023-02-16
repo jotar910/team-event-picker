@@ -57,8 +57,21 @@ impl From<insert_channel::Error> for Error {
     }
 }
 
-pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    match repo.clone().find_event_by_name(req.name.clone()) {
+pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
+    let channel = match repo.clone().find_channel_by_name(req.channel.clone()).await {
+        Ok(channel) => channel,
+        Err(error) => {
+            return Err(match error {
+                FindError::NotFound => Error::BadRequest,
+                FindError::Unknown => Error::Unknown,
+            })
+        }
+    };
+    match repo
+        .clone()
+        .find_event_by_name(req.name.clone(), channel.id)
+        .await
+    {
         Ok(..) => return Err(Error::Conflict),
         Err(error) if error != FindError::NotFound => return Err(Error::Unknown),
         _ => (),
@@ -75,16 +88,18 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
         cur_pick: 0,
         deleted: false,
     };
-    event.participants = insert_users::execute(repo.clone(), req.clone().into())?
+    event.participants = insert_users::execute(repo.clone(), req.clone().into())
+        .await?
         .users
         .iter()
         .map(|user| user.id)
         .collect();
-    event.channel = insert_channel::execute(repo.clone(), req.into())?
+    event.channel = insert_channel::execute(repo.clone(), req.into())
+        .await?
         .channel
         .id;
 
-    match repo.insert_event(event) {
+    match repo.insert_event(event).await {
         Ok(Event { id, .. }) => Ok(Response { id }),
         Err(err) => Err(match err {
             InsertError::Conflict => Error::Conflict,
@@ -99,12 +114,17 @@ mod tests {
     use crate::domain::mocks;
     use crate::repository::event::InMemoryRepository;
 
-    #[test]
-    fn it_should_return_the_id_for_the_created_event() {
+    #[tokio::test]
+    async fn it_should_return_the_id_for_the_created_event() {
         let repo = Arc::new(InMemoryRepository::new());
+
+        if let Err(..) = repo.insert_channel(mocks::mock_channel()).await {
+            unreachable!("channel must be created for this test")
+        }
+
         let req = mocks::mock_create_event_request();
 
-        let result = execute(repo, req);
+        let result = execute(repo, req).await;
 
         match result {
             Ok(Response { id }) => assert_eq!(id, 0),
@@ -112,13 +132,13 @@ mod tests {
         };
     }
 
-    #[test]
-    fn it_should_fail_on_invalid_request_payload_for_repeat_field() {
+    #[tokio::test]
+    async fn it_should_fail_on_invalid_request_payload_for_repeat_field() {
         let repo = Arc::new(InMemoryRepository::new());
         let mut req = mocks::mock_create_event_request();
         req.repeat = "test".to_string();
 
-        let result = execute(repo, req);
+        let result = execute(repo, req).await;
 
         match result {
             Err(err) => assert_eq!(err, Error::BadRequest),
@@ -126,38 +146,46 @@ mod tests {
         };
     }
 
-    #[test]
-    fn it_should_create_new_participants_when_creating_event() {
+    #[tokio::test]
+    async fn it_should_create_new_participants_when_creating_event() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        let result = execute(repo.clone(), mocks::mock_create_event_request());
+        if let Err(..) = repo.insert_channel(mocks::mock_channel()).await {
+            unreachable!("channel must be created for this test")
+        }
+
+        let result = execute(repo.clone(), mocks::mock_create_event_request()).await;
 
         match result {
             Ok(Response { id }) => assert_eq!(id, 0),
             _ => unreachable!(),
         };
 
-        match repo.find_event(0) {
+        match repo.find_event(0).await {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![0, 1]),
             _ => unreachable!(),
         }
     }
 
-    #[test]
-    fn it_should_use_existing_participants_when_creating_event() {
+    #[tokio::test]
+    async fn it_should_use_existing_participants_when_creating_event() {
         let repo = Arc::new(InMemoryRepository::new());
+
+        if let Err(..) = repo.insert_channel(mocks::mock_channel()).await {
+            unreachable!("channel must be created for this test")
+        }
 
         let mut req = mocks::mock_create_event_request();
         req.participants[0] = "Joana".to_string();
 
-        let result = execute(repo.clone(), req);
+        let result = execute(repo.clone(), req).await;
 
         match result {
             Ok(Response { id }) => assert_eq!(id, 0),
             _ => unreachable!(),
         };
 
-        match repo.clone().find_event(0) {
+        match repo.clone().find_event(0).await {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![0, 0]),
             _ => unreachable!(),
         }
@@ -167,31 +195,35 @@ mod tests {
         let mut req = mocks::mock_create_event_request();
         req.name += "2";
 
-        let result = execute(repo.clone(), req);
+        let result = execute(repo.clone(), req).await;
 
         match result {
             Ok(Response { id }) => assert_eq!(id, 1),
             _ => unreachable!(),
         };
 
-        match repo.clone().find_event(1) {
+        match repo.clone().find_event(1).await {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![1, 0]),
             _ => unreachable!(),
         }
     }
 
-    #[test]
-    fn it_should_return_conflict_when_created_events_with_the_same_name() {
+    #[tokio::test]
+    async fn it_should_return_conflict_when_created_events_with_the_same_name() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        let result = execute(repo.clone(), mocks::mock_create_event_request());
+        if let Err(..) = repo.insert_channel(mocks::mock_channel()).await {
+            unreachable!("channel must be created for this test")
+        }
+
+        let result = execute(repo.clone(), mocks::mock_create_event_request()).await;
 
         match result {
             Ok(Response { id }) => assert_eq!(id, 0),
             _ => unreachable!(),
         }
 
-        let result = execute(repo.clone(), mocks::mock_create_event_request());
+        let result = execute(repo.clone(), mocks::mock_create_event_request()).await;
 
         match result {
             Err(err) => assert_eq!(err, Error::Conflict),

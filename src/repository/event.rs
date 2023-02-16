@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::sync::Mutex;
 use std::{collections::HashMap, sync::MutexGuard};
 
+use async_trait::async_trait;
 use mongodb::bson::doc;
 use serde::de::DeserializeOwned;
 
@@ -90,28 +91,29 @@ pub trait Transition: Drop {
     fn rollback(&self);
 }
 
+#[async_trait]
 pub trait Repository: Send + Sync {
     fn transition(&self) -> Box<dyn Transition>;
 
-    fn find_event(&self, id: u32) -> Result<Event, FindError>;
-    fn find_event_by_name(&self, name: String) -> Result<Event, FindError>;
-    fn find_all_events(&self, channel: String) -> Result<Vec<Event>, FindAllError>;
-    fn insert_event(&self, event: Event) -> Result<Event, InsertError>;
-    fn update_event(&self, event: Event) -> Result<(), UpdateError>;
-    fn delete_event(&self, id: u32) -> Result<Event, DeleteError>;
+    async fn find_event(&self, id: u32) -> Result<Event, FindError>;
+    async fn find_event_by_name(&self, name: String, channel: u32) -> Result<Event, FindError>;
+    async fn find_all_events(&self, channel: String) -> Result<Vec<Event>, FindAllError>;
+    async fn insert_event(&self, event: Event) -> Result<Event, InsertError>;
+    async fn update_event(&self, event: Event) -> Result<(), UpdateError>;
+    async fn delete_event(&self, id: u32) -> Result<Event, DeleteError>;
 
-    fn find_channel(&self, id: u32) -> Result<Channel, FindError>;
-    fn find_channel_by_name(&self, name: String) -> Result<Channel, FindError>;
-    fn find_all_channels(&self) -> Result<Vec<Channel>, FindAllError>;
-    fn insert_channel(&self, channel: Channel) -> Result<Channel, InsertError>;
+    async fn find_channel(&self, id: u32) -> Result<Channel, FindError>;
+    async fn find_channel_by_name(&self, name: String) -> Result<Channel, FindError>;
+    async fn find_all_channels(&self) -> Result<Vec<Channel>, FindAllError>;
+    async fn insert_channel(&self, channel: Channel) -> Result<Channel, InsertError>;
 
-    fn find_user(&self, id: u32) -> Result<User, FindError>;
-    fn find_users(&self, ids: Vec<u32>) -> Result<Vec<User>, FindAllError>;
-    fn find_users_by_name(&self, name: Vec<String>) -> Result<Vec<User>, FindAllError>;
-    fn insert_users(&self, users: Vec<User>) -> Result<Vec<User>, InsertError>;
+    async fn find_user(&self, id: u32) -> Result<User, FindError>;
+    async fn find_users(&self, ids: Vec<u32>) -> Result<Vec<User>, FindAllError>;
+    async fn find_users_by_name(&self, name: Vec<String>) -> Result<Vec<User>, FindAllError>;
+    async fn insert_users(&self, users: Vec<User>) -> Result<Vec<User>, InsertError>;
 
-    fn save_pick(&self, pick_data: EventPick) -> Result<(), UpdateError>;
-    fn rev_pick(&self, event_id: u32) -> Result<(), UpdateError>;
+    async fn save_pick(&self, pick_data: EventPick) -> Result<(), UpdateError>;
+    async fn rev_pick(&self, event_id: u32) -> Result<(), UpdateError>;
 }
 
 pub struct InMemoryRepository {
@@ -141,12 +143,13 @@ impl InMemoryRepository {
     }
 }
 
+#[async_trait]
 impl Repository for InMemoryRepository {
     fn transition(&self) -> Box<dyn Transition> {
         Box::new(InMemoryTransaction::new())
     }
 
-    fn find_event(&self, id: u32) -> Result<Event, FindError> {
+    async fn find_event(&self, id: u32) -> Result<Event, FindError> {
         let lock = match self.events.lock() {
             Ok(lock) => lock,
             _ => return Err(FindError::Unknown),
@@ -157,21 +160,21 @@ impl Repository for InMemoryRepository {
         }
     }
 
-    fn find_event_by_name(&self, name: String) -> Result<Event, FindError> {
+    async fn find_event_by_name(&self, name: String, channel: u32) -> Result<Event, FindError> {
         let lock = match self.events.lock() {
             Ok(lock) => lock,
             _ => return Err(FindError::Unknown),
         };
         match lock
             .iter()
-            .find(|&event| event.name == name && !event.deleted)
+            .find(|&event| event.name == name && event.channel == channel && !event.deleted)
         {
             Some(event) => Ok(event.clone()),
             _ => Err(FindError::NotFound),
         }
     }
 
-    fn find_all_events(&self, channel: String) -> Result<Vec<Event>, FindAllError> {
+    async fn find_all_events(&self, channel: String) -> Result<Vec<Event>, FindAllError> {
         let lock = match self.events.lock() {
             Ok(lock) => lock,
             _ => return Err(FindAllError::Unknown),
@@ -187,8 +190,11 @@ impl Repository for InMemoryRepository {
             .collect())
     }
 
-    fn insert_event(&self, event: Event) -> Result<Event, InsertError> {
-        match self.find_event_by_name(event.name.clone()) {
+    async fn insert_event(&self, event: Event) -> Result<Event, InsertError> {
+        match self
+            .find_event_by_name(event.name.clone(), event.channel.clone())
+            .await
+        {
             Ok(..) => return Err(InsertError::Conflict),
             Err(error) if error != FindError::NotFound => return Err(InsertError::Unknown),
             _ => (),
@@ -207,7 +213,7 @@ impl Repository for InMemoryRepository {
         Ok(event)
     }
 
-    fn update_event(&self, event: Event) -> Result<(), UpdateError> {
+    async fn update_event(&self, event: Event) -> Result<(), UpdateError> {
         let mut lock = match self.events.lock() {
             Ok(lock) => lock,
             _ => return Err(UpdateError::Unknown),
@@ -239,7 +245,7 @@ impl Repository for InMemoryRepository {
         Ok(())
     }
 
-    fn delete_event(&self, id: u32) -> Result<Event, DeleteError> {
+    async fn delete_event(&self, id: u32) -> Result<Event, DeleteError> {
         let mut lock = match self.events.lock() {
             Ok(lock) => lock,
             _ => return Err(DeleteError::Unknown),
@@ -257,7 +263,7 @@ impl Repository for InMemoryRepository {
         }
     }
 
-    fn find_channel(&self, id: u32) -> Result<Channel, FindError> {
+    async fn find_channel(&self, id: u32) -> Result<Channel, FindError> {
         let lock = match self.channels.lock() {
             Ok(lock) => lock,
             _ => return Err(FindError::Unknown),
@@ -268,7 +274,7 @@ impl Repository for InMemoryRepository {
         }
     }
 
-    fn find_channel_by_name(&self, name: String) -> Result<Channel, FindError> {
+    async fn find_channel_by_name(&self, name: String) -> Result<Channel, FindError> {
         let lock = match self.channels.lock() {
             Ok(lock) => lock,
             _ => return Err(FindError::Unknown),
@@ -279,7 +285,7 @@ impl Repository for InMemoryRepository {
         }
     }
 
-    fn find_all_channels(&self) -> Result<Vec<Channel>, FindAllError> {
+    async fn find_all_channels(&self) -> Result<Vec<Channel>, FindAllError> {
         let lock = match self.channels.lock() {
             Ok(lock) => lock,
             _ => return Err(FindAllError::Unknown),
@@ -287,7 +293,7 @@ impl Repository for InMemoryRepository {
         Ok(lock.iter().map(|channel| channel.clone()).collect())
     }
 
-    fn insert_channel(&self, channel: Channel) -> Result<Channel, InsertError> {
+    async fn insert_channel(&self, channel: Channel) -> Result<Channel, InsertError> {
         let mut lock: MutexGuard<Vec<Channel>> = match self.channels.lock() {
             Ok(lock) => lock,
             _ => return Err(InsertError::Unknown),
@@ -307,7 +313,7 @@ impl Repository for InMemoryRepository {
         Ok(channel)
     }
 
-    fn find_user(&self, id: u32) -> Result<User, FindError> {
+    async fn find_user(&self, id: u32) -> Result<User, FindError> {
         let lock = match self.users.lock() {
             Ok(lock) => lock,
             _ => return Err(FindError::Unknown),
@@ -318,7 +324,7 @@ impl Repository for InMemoryRepository {
         }
     }
 
-    fn find_users(&self, ids: Vec<u32>) -> Result<Vec<User>, FindAllError> {
+    async fn find_users(&self, ids: Vec<u32>) -> Result<Vec<User>, FindAllError> {
         let lock = match self.users.lock() {
             Ok(lock) => lock,
             _ => return Err(FindAllError::Unknown),
@@ -341,7 +347,7 @@ impl Repository for InMemoryRepository {
         Ok(users)
     }
 
-    fn find_users_by_name(&self, names: Vec<String>) -> Result<Vec<User>, FindAllError> {
+    async fn find_users_by_name(&self, names: Vec<String>) -> Result<Vec<User>, FindAllError> {
         let lock = match self.users.lock() {
             Ok(lock) => lock,
             _ => return Err(FindAllError::Unknown),
@@ -364,7 +370,7 @@ impl Repository for InMemoryRepository {
         Ok(users)
     }
 
-    fn insert_users(&self, users: Vec<User>) -> Result<Vec<User>, InsertError> {
+    async fn insert_users(&self, users: Vec<User>) -> Result<Vec<User>, InsertError> {
         let mut lock = match self.users.lock() {
             Ok(lock) => lock,
             _ => return Err(InsertError::Unknown),
@@ -392,7 +398,7 @@ impl Repository for InMemoryRepository {
         Ok(added_users)
     }
 
-    fn save_pick(&self, pick_data: EventPick) -> Result<(), UpdateError> {
+    async fn save_pick(&self, pick_data: EventPick) -> Result<(), UpdateError> {
         let mut lock = match self.events.lock() {
             Ok(lock) => lock,
             Err(..) => return Err(UpdateError::Unknown),
@@ -411,7 +417,7 @@ impl Repository for InMemoryRepository {
         }
     }
 
-    fn rev_pick(&self, event_id: u32) -> Result<(), UpdateError> {
+    async fn rev_pick(&self, event_id: u32) -> Result<(), UpdateError> {
         let mut lock = match self.events.lock() {
             Ok(lock) => lock,
             Err(..) => return Err(UpdateError::Unknown),
@@ -464,7 +470,7 @@ impl MongoDbRepository {
         database: &str,
     ) -> Result<MongoDbRepository, mongodb::error::Error> {
         // Parse a connection string into an options struct.
-        let mut client_options = mongodb::options::ClientOptions::parse(uri).await?;
+        let client_options = mongodb::options::ClientOptions::parse(uri).await?;
 
         // Get a handle to the deployment.
         let client = mongodb::Client::with_options(client_options)?;
@@ -522,7 +528,10 @@ impl MongoDbRepository {
 
         Ok(values)
     }
+}
 
+#[async_trait]
+impl Repository for MongoDbRepository {
     fn transition(&self) -> Box<dyn Transition> {
         Box::new(InMemoryTransaction::new())
     }
@@ -830,11 +839,11 @@ mod tests {
     use super::*;
     use crate::domain::mocks;
 
-    #[test]
-    fn it_should_return_not_found_error_when_find_event_does_not_exist() {
+    #[tokio::test]
+    async fn it_should_return_not_found_error_when_find_event_does_not_exist() {
         let repo = InMemoryRepository::new();
 
-        let result = repo.find_event(0);
+        let result = repo.find_event(0).await;
 
         match result {
             Err(err) => assert_eq!(err, FindError::NotFound),
@@ -842,12 +851,12 @@ mod tests {
         }
     }
 
-    #[test]
-    fn it_should_return_the_event_when_find_is_called_with_an_existing_id() {
+    #[tokio::test]
+    async fn it_should_return_the_event_when_find_is_called_with_an_existing_id() {
         let repo = InMemoryRepository::new();
 
         let mock = mocks::mock_event();
-        let result = repo.insert_event(mock);
+        let result = repo.insert_event(mock).await;
 
         if let Err(_) = result {
             unreachable!("event must be created")
@@ -855,7 +864,7 @@ mod tests {
 
         let mut mock = mocks::mock_event();
         mock.name += " 2";
-        let result = repo.insert_event(mock);
+        let result = repo.insert_event(mock).await;
 
         if let Err(_) = result {
             unreachable!("event must be created")
@@ -863,7 +872,7 @@ mod tests {
 
         // Testing find here ---
 
-        let result = repo.find_event(1);
+        let result = repo.find_event(1).await;
 
         match result {
             Ok(Event { id, .. }) => assert_eq!(id, 1),
@@ -871,23 +880,23 @@ mod tests {
         }
     }
 
-    #[test]
-    fn it_should_return_all_the_events_for_a_given_channel_when_find_all() {
+    #[tokio::test]
+    async fn it_should_return_all_the_events_for_a_given_channel_when_find_all() {
         let repo = InMemoryRepository::new();
 
-        if let Err(_) = repo.insert_channel(mocks::mock_channel()) {
+        if let Err(_) = repo.insert_channel(mocks::mock_channel()).await {
             unreachable!("channel must be created")
         }
 
         if let Err(_) = repo.insert_channel(Channel {
             id: 1,
             name: mocks::mock_channel().name + "2",
-        }) {
+        }).await {
             unreachable!("channel must be created")
         }
 
         let mock = mocks::mock_event();
-        let result = repo.insert_event(mock);
+        let result = repo.insert_event(mock).await;
 
         if let Err(_) = result {
             unreachable!("event must be created")
@@ -896,7 +905,7 @@ mod tests {
         let mut mock = mocks::mock_event();
         mock.name += "2";
         mock.channel = 1;
-        let result = repo.insert_event(mock);
+        let result = repo.insert_event(mock).await;
 
         if let Err(_) = result {
             unreachable!("event must be created")
@@ -904,7 +913,7 @@ mod tests {
 
         let mut mock = mocks::mock_event();
         mock.name += "3";
-        let result = repo.insert_event(mock);
+        let result = repo.insert_event(mock).await;
 
         if let Err(_) = result {
             unreachable!("event must be created")
@@ -912,7 +921,7 @@ mod tests {
 
         // Testing find_all here ---
 
-        let result = repo.find_all_events(mocks::mock_channel().name);
+        let result = repo.find_all_events(mocks::mock_channel().name).await;
 
         match result {
             Ok(events) => assert_eq!(
@@ -923,8 +932,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn it_should_find_participants_that_have_the_same_ids_as_the_provided() {
+    #[tokio::test]
+    async fn it_should_find_participants_that_have_the_same_ids_as_the_provided() {
         let repo = InMemoryRepository::new();
 
         if let Err(_) = repo.insert_users(vec![
@@ -944,13 +953,13 @@ mod tests {
                 id: 0,
                 name: "Simão".to_string(),
             },
-        ]) {
+        ]).await {
             unreachable!("users must be created")
         }
 
         // Testing find_participants here ---
 
-        let result = repo.find_users(vec![1, 2]);
+        let result = repo.find_users(vec![1, 2]).await;
 
         match result {
             Ok(users) => assert_eq!(
@@ -970,24 +979,24 @@ mod tests {
         }
     }
 
-    #[test]
-    fn it_should_return_the_list_of_all_channels_on_find_all_channels() {
+    #[tokio::test]
+    async fn it_should_return_the_list_of_all_channels_on_find_all_channels() {
         let repo = InMemoryRepository::new();
 
-        if let Err(_) = repo.insert_channel(mocks::mock_channel()) {
+        if let Err(_) = repo.insert_channel(mocks::mock_channel()).await {
             unreachable!("channel must be created")
         }
 
         if let Err(_) = repo.insert_channel(Channel {
             id: 1,
             name: mocks::mock_channel().name + "2",
-        }) {
+        }).await {
             unreachable!("channel must be created")
         }
 
         // Testing find_all_channels here ---
 
-        let result = repo.find_all_channels();
+        let result = repo.find_all_channels().await;
 
         match result {
             Ok(channels) => assert_eq!(
@@ -1001,28 +1010,28 @@ mod tests {
         }
     }
 
-    #[test]
-    fn it_should_delete_an_event_by_id() {
+    #[tokio::test]
+    async fn it_should_delete_an_event_by_id() {
         let repo = InMemoryRepository::new();
 
-        if let Err(_) = repo.insert_event(mocks::mock_event()) {
+        if let Err(_) = repo.insert_event(mocks::mock_event()).await {
             unreachable!("event must be created")
         }
 
-        if let Err(_) = repo.find_event(0) {
+        if let Err(_) = repo.find_event(0).await {
             unreachable!("event must exist")
         }
 
         // Testing delete here ---
 
-        let result = repo.delete_event(0);
+        let result = repo.delete_event(0).await;
 
         match result {
             Ok(Event { id, .. }) => assert_eq!(id, 0),
             _ => unreachable!(),
         }
 
-        match repo.find_event(0) {
+        match repo.find_event(0).await {
             Err(err) => assert_eq!(err, FindError::NotFound),
             _ => unreachable!("should not exist"),
         }

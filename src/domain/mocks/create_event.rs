@@ -14,14 +14,14 @@ pub fn mock_create_event_request() -> Request {
     }
 }
 
-pub fn insert_mock_event(repo: Arc<InMemoryRepository>) -> Event {
-    if let Err(..) = repo.insert_channel(super::mock_channel()) {
+pub async fn insert_mock_event(repo: Arc<InMemoryRepository>) -> Event {
+    if let Err(..) = repo.insert_channel(super::mock_channel()).await {
         unreachable!("channel must be created for this test")
     }
-    if let Err(..) = repo.insert_users(super::mock_participants()) {
+    if let Err(..) = repo.insert_users(super::mock_participants()).await {
         unreachable!("users must be created for this test")
     }
-    match repo.insert_event(super::mock_event()) {
+    match repo.insert_event(super::mock_event()).await {
         Ok(event) => event,
         _ => unreachable!("event must be created for this test"),
     }

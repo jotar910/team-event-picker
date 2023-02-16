@@ -27,9 +27,9 @@ pub enum Error {
     Unknown,
 }
 
-pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
+pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
     let event_id = req.event;
-    let event = repo.clone().find_event(event_id);
+    let event = repo.clone().find_event(event_id).await;
 
     if let Err(error) = event {
         return Err(match error {
@@ -43,6 +43,7 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
     let pick_update_helper = PickUpdateHelper::new(&event.participants, event.cur_pick);
 
     event.participants = insert_users::execute(repo.clone(), req.into())
+        .await
         .map_err(|err| match err {
             insert_users::Error::Unknown => Error::Unknown,
         })?
@@ -54,7 +55,7 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
     event.cur_pick = pick_update_helper.new_pick(&event.participants);
     event.prev_pick = event.cur_pick;
 
-    match repo.update_event(event) {
+    match repo.update_event(event).await {
         Err(error) => match error {
             UpdateError::NotFound => Err(Error::NotFound),
             UpdateError::Conflict | UpdateError::Unknown => Err(Error::Unknown),
@@ -70,11 +71,11 @@ mod tests {
     use crate::domain::mocks;
     use crate::repository::event::InMemoryRepository;
 
-    #[test]
-    fn it_should_update_participants() {
+    #[tokio::test]
+    async fn it_should_update_participants() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        let result = mocks::insert_mock_event(repo.clone());
+        let result = mocks::insert_mock_event(repo.clone()).await;
 
         assert_eq!(result.participants, vec![0, 1]);
 
@@ -85,28 +86,28 @@ mod tests {
             participants: mocks::mock_users_names(),
         };
 
-        let result = execute(repo.clone(), req);
+        let result = execute(repo.clone(), req).await;
 
         match result {
             Ok(Response { id, .. }) => assert_eq!(id, 0),
             _ => unreachable!(),
         }
 
-        match repo.find_event(0) {
+        match repo.find_event(0).await {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![2, 3, 1]),
             _ => unreachable!(),
         }
     }
 
-    #[test]
-    fn it_should_update_pick_data_when_participants_are_updated() {
+    #[tokio::test]
+    async fn it_should_update_pick_data_when_participants_are_updated() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        let result = mocks::insert_mock_event(repo.clone());
+        let result = mocks::insert_mock_event(repo.clone()).await;
 
         assert_eq!(result.participants, vec![0, 1]);
 
-        if let Err(..) = repo.clone().save_pick(EventPick{event: 0, pick: 3}) {
+        if let Err(..) = repo.clone().save_pick(EventPick { event: 0, pick: 3 }).await {
             unreachable!("event pick data must be saved")
         }
 
@@ -117,38 +118,50 @@ mod tests {
             participants: mocks::mock_users_names(),
         };
 
-        let result = execute(repo.clone(), req);
+        let result = execute(repo.clone(), req).await;
 
         match result {
             Ok(Response { id, .. }) => assert_eq!(id, 0),
             _ => unreachable!(),
         }
 
-        match repo.find_event(0) {
-            Ok(Event { cur_pick, prev_pick, .. }) => {
+        match repo.find_event(0).await {
+            Ok(Event {
+                cur_pick,
+                prev_pick,
+                ..
+            }) => {
                 assert_eq!(prev_pick, 4);
                 assert_eq!(cur_pick, 4);
-            },
+            }
             _ => unreachable!(),
         }
 
         let req = Request {
             event: 0,
-            participants: mocks::mock_participants().into_iter().map(|p| p.name).rev().collect(),
+            participants: mocks::mock_participants()
+                .into_iter()
+                .map(|p| p.name)
+                .rev()
+                .collect(),
         };
 
-        let result = execute(repo.clone(), req);
+        let result = execute(repo.clone(), req).await;
 
         match result {
             Ok(Response { id, .. }) => assert_eq!(id, 0),
             _ => unreachable!(),
         }
 
-        match repo.find_event(0) {
-            Ok(Event { cur_pick, prev_pick, .. }) => {
+        match repo.find_event(0).await {
+            Ok(Event {
+                cur_pick,
+                prev_pick,
+                ..
+            }) => {
                 assert_eq!(prev_pick, 1);
                 assert_eq!(cur_pick, 1);
-            },
+            }
             _ => unreachable!(),
         }
     }

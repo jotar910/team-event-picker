@@ -16,8 +16,8 @@ pub struct Response {
     pub id: u32,
 }
 
-pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    let event = match repo.delete_event(req.id) {
+pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
+    let event = match repo.delete_event(req.id).await {
         Err(err) => {
             return match err {
                 DeleteError::NotFound => Err(Error::NotFound),
@@ -35,35 +35,35 @@ mod tests {
     use crate::domain::mocks;
     use crate::repository::event::{FindError, InMemoryRepository};
 
-    #[test]
-    fn it_should_delete_the_event_for_the_provided_id() {
+    #[tokio::test]
+    async fn it_should_delete_the_event_for_the_provided_id() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        mocks::insert_mock_event(repo.clone());
+        mocks::insert_mock_event(repo.clone()).await;
 
         // Testing delete here --
 
         let req = Request { id: 0 };
 
-        let result = execute(repo.clone(), req);
+        let result = execute(repo.clone(), req).await;
 
         match result {
             Ok(Response { id, .. }) => assert_eq!(id, 0),
             _ => unreachable!(),
         }
 
-        match repo.find_event(0) {
+        match repo.find_event(0).await {
             Err(err) => assert_eq!(err, FindError::NotFound),
             _ => unreachable!("event must not exist"),
         }
     }
 
-    #[test]
-    fn it_should_return_not_found_error_for_the_provided_id() {
+    #[tokio::test]
+    async fn it_should_return_not_found_error_for_the_provided_id() {
         let repo = Arc::new(InMemoryRepository::new());
         let req = Request { id: 0 };
 
-        let result = execute(repo, req);
+        let result = execute(repo, req).await;
 
         match result {
             Err(error) => assert_eq!(error, Error::NotFound),

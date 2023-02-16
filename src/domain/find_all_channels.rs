@@ -9,8 +9,8 @@ pub enum Error {
     Unknown,
 }
 
-pub fn execute(repo: Arc<dyn Repository>) -> Result<ListResponse<Channel>, Error> {
-    match repo.find_all_channels() {
+pub async fn execute(repo: Arc<dyn Repository>) -> Result<ListResponse<Channel>, Error> {
+    match repo.find_all_channels().await {
         Err(err) => {
             return match err {
                 FindAllError::Unknown => Err(Error::Unknown),
@@ -26,15 +26,15 @@ mod tests {
     use crate::domain::mocks;
     use crate::repository::event::InMemoryRepository;
 
-    #[test]
-    fn it_should_return_all_the_channels() {
+    #[tokio::test]
+    async fn it_should_return_all_the_channels() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        mocks::insert_mock_event(repo.clone());
+        mocks::insert_mock_event(repo.clone()).await;
 
         // Testing find here --
 
-        let result = execute(repo);
+        let result = execute(repo).await;
 
         match result {
             Ok(ListResponse { data }) => assert_eq!(data, vec![mocks::mock_channel()]),

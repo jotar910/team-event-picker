@@ -44,8 +44,8 @@ impl From<pick_participant::Error> for Error {
     }
 }
 
-pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    let event = repo.find_event(req.event.clone()).map_err(|error| {
+pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
+    let event = repo.find_event(req.event.clone()).await.map_err(|error| {
         return match error {
             FindError::NotFound => Error::NotFound,
             FindError::Unknown => Error::Unknown,
@@ -58,12 +58,13 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
 
     repo.clone()
         .rev_pick(event.id)
+        .await
         .map_err(|error| match error {
             UpdateError::NotFound => Error::NotFound,
             UpdateError::Conflict | UpdateError::Unknown => Error::Unknown,
         })?;
 
-    Ok(pick_participant::execute(repo, req.into())?.into())
+    Ok(pick_participant::execute(repo, req.into()).await?.into())
 }
 
 #[cfg(test)]
@@ -72,30 +73,30 @@ mod tests {
     use crate::domain::mocks;
     use crate::repository::event::InMemoryRepository;
 
-    #[test]
-    fn it_should_re_pick_randomly_participants() {
+    #[tokio::test]
+    async fn it_should_re_pick_randomly_participants() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        mocks::insert_mock_event(repo.clone());
+        mocks::insert_mock_event(repo.clone()).await;
 
         // Testing pick here ---
 
-        let result = execute(repo.clone(), Request { event: 0 });
+        let result = execute(repo.clone(), Request { event: 0 }).await;
 
         if let Err(..) = result {
             unreachable!()
         }
 
-        match repo.find_event(0) {
+        match repo.find_event(0).await {
             Ok(event) => assert!(event.cur_pick > 0 && event.cur_pick < 3),
             Err(..) => unreachable!("event must exist"),
         };
 
-        if let Err(..) = execute(repo.clone(), Request { event: 0 }) {
+        if let Err(..) = execute(repo.clone(), Request { event: 0 }).await {
             unreachable!()
         }
 
-        match repo.find_event(0) {
+        match repo.find_event(0).await {
             Ok(event) => assert!(event.cur_pick > 0 && event.cur_pick < 3),
             Err(..) => unreachable!("event must exist"),
         };

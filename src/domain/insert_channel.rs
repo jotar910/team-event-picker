@@ -16,8 +16,8 @@ pub enum Error {
     Unknown,
 }
 
-pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    match repo.find_channel_by_name(req.name.clone()) {
+pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
+    match repo.find_channel_by_name(req.name.clone()).await {
         Ok(channel) => return Ok(Response { channel }),
         Err(error) if error != FindError::NotFound => return Err(Error::Unknown),
         _ => (),
@@ -28,9 +28,12 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
         name: req.name,
     };
 
-    let channel: Channel = repo.insert_channel(channel).map_err(|error| match error {
-        InsertError::Conflict | InsertError::Unknown => Error::Unknown,
-    })?;
+    let channel: Channel = repo
+        .insert_channel(channel)
+        .await
+        .map_err(|error| match error {
+            InsertError::Conflict | InsertError::Unknown => Error::Unknown,
+        })?;
 
     Ok(Response { channel })
 }
@@ -41,15 +44,15 @@ mod tests {
     use crate::domain::mocks;
     use crate::repository::event::InMemoryRepository;
 
-    #[test]
-    fn it_should_update_participants_for_the_given_event() {
+    #[tokio::test]
+    async fn it_should_update_participants_for_the_given_event() {
         let repo = Arc::new(InMemoryRepository::new());
 
         let req = Request {
             name: mocks::mock_channel().name,
         };
 
-        let result = execute(repo, req);
+        let result = execute(repo, req).await;
 
         match result {
             Ok(Response { channel }) => assert_eq!(channel, mocks::mock_channel()),

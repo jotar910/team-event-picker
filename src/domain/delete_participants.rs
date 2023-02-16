@@ -18,10 +18,10 @@ pub enum Error {
     Unknown,
 }
 
-pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
+pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
     let event_id = req.event;
 
-    let event = repo.find_event(event_id);
+    let event = repo.find_event(event_id).await;
 
     if let Err(error) = event {
         return Err(match error {
@@ -36,6 +36,7 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
 
     event.participants = repo
         .find_users(event.participants.clone())
+        .await
         .map_err(|err| match err {
             FindAllError::Unknown => Error::Unknown,
         })?
@@ -43,11 +44,11 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
         .filter(|participant| !req.participants.contains(&participant.name))
         .map(|participant| participant.id)
         .collect();
-    
+
     event.cur_pick = pick_update_helper.new_pick(&event.participants);
     event.prev_pick = event.cur_pick;
 
-    match repo.update_event(event) {
+    match repo.update_event(event).await {
         Err(error) => match error {
             UpdateError::NotFound => Err(Error::NotFound),
             UpdateError::Conflict | UpdateError::Unknown => Err(Error::Unknown),
@@ -63,11 +64,11 @@ mod tests {
     use crate::domain::mocks;
     use crate::repository::event::InMemoryRepository;
 
-    #[test]
-    fn it_should_update_participants() {
+    #[tokio::test]
+    async fn it_should_update_participants() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        mocks::insert_mock_event(repo.clone());
+        mocks::insert_mock_event(repo.clone()).await;
 
         // Testing update_participants here ---
 
@@ -76,14 +77,14 @@ mod tests {
             participants: mocks::mock_users_names(),
         };
 
-        let result = execute(repo.clone(), req);
+        let result = execute(repo.clone(), req).await;
 
         match result {
             Ok(Response { id, .. }) => assert_eq!(id, 0),
             _ => unreachable!(),
         }
 
-        match repo.find_event(0) {
+        match repo.find_event(0).await {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![0]),
             _ => unreachable!(),
         }

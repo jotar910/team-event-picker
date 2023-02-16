@@ -22,8 +22,8 @@ pub struct Response {
     pub channel: Channel,
 }
 
-pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    let event = match repo.find_event(req.id) {
+pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
+    let event = match repo.find_event(req.id).await {
         Err(err) => {
             return match err {
                 FindError::NotFound => Err(Error::NotFound),
@@ -39,11 +39,13 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Erro
         repeat: event.repeat,
         participants: repo
             .find_users(event.participants)
+            .await
             .map_err(|error| match error {
                 FindAllError::Unknown => Error::Unknown,
             })?,
         channel: repo
             .find_channel(event.channel)
+            .await
             .map_err(|error| match error {
                 FindError::NotFound => Error::NotFound,
                 FindError::Unknown => Error::Unknown,
@@ -57,17 +59,17 @@ mod tests {
     use crate::domain::mocks;
     use crate::repository::event::InMemoryRepository;
 
-    #[test]
-    fn it_should_return_the_event_for_the_provided_id() {
+    #[tokio::test]
+    async fn it_should_return_the_event_for_the_provided_id() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        mocks::insert_mock_event(repo.clone());
+        mocks::insert_mock_event(repo.clone()).await;
 
         // Testing find here --
 
         let req = Request { id: 0 };
 
-        let result = execute(repo, req);
+        let result = execute(repo, req).await;
 
         match result {
             Ok(res) => assert_eq!(res, mocks::mock_find_event_response()),
@@ -75,12 +77,12 @@ mod tests {
         }
     }
 
-    #[test]
-    fn it_should_return_not_found_error_for_the_provided_id() {
+    #[tokio::test]
+    async fn it_should_return_not_found_error_for_the_provided_id() {
         let repo = Arc::new(InMemoryRepository::new());
         let req = Request { id: 0 };
 
-        let result = execute(repo, req);
+        let result = execute(repo, req).await;
 
         match result {
             Err(error) => assert_eq!(error, Error::NotFound),

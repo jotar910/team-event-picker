@@ -22,8 +22,11 @@ pub enum Error {
     Unknown,
 }
 
-pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<ListResponse<Response>, Error> {
-    let events = match repo.find_all_events(req.channel) {
+pub async fn execute(
+    repo: Arc<dyn Repository>,
+    req: Request,
+) -> Result<ListResponse<Response>, Error> {
+    let events = match repo.find_all_events(req.channel).await {
         Err(err) => {
             return match err {
                 FindAllError::Unknown => Err(Error::Unknown),
@@ -34,7 +37,7 @@ pub fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<ListResponse<R
     Ok(ListResponse::new({
         let mut responses = Vec::new();
         for event in events.into_iter() {
-            let participants = match repo.find_users(event.participants) {
+            let participants = match repo.find_users(event.participants).await {
                 Ok(users) => users,
                 Err(error) => match error {
                     FindAllError::Unknown => return Err(Error::Unknown),
@@ -60,11 +63,11 @@ mod tests {
     use crate::domain::mocks;
     use crate::repository::event::InMemoryRepository;
 
-    #[test]
-    fn it_should_return_all_the_events_for_the_provided_channel() {
+    #[tokio::test]
+    async fn it_should_return_all_the_events_for_the_provided_channel() {
         let repo = Arc::new(InMemoryRepository::new());
 
-        mocks::insert_mock_event(repo.clone());
+        mocks::insert_mock_event(repo.clone()).await;
 
         let mut mock = mocks::mock_event();
         mock.name += "2";
@@ -72,16 +75,16 @@ mod tests {
         if let Err(..) = repo.insert_channel(Channel {
             id: 1,
             name: mocks::mock_channel().name + "2",
-        }) {
+        }).await {
             unreachable!("channel must be created for this test")
         }
-        if let Err(..) = repo.insert_event(mock) {
+        if let Err(..) = repo.insert_event(mock).await {
             unreachable!("event must be created for this test")
         }
 
         let mut mock = mocks::mock_event();
         mock.name += "3";
-        if let Err(..) = repo.insert_event(mock) {
+        if let Err(..) = repo.insert_event(mock).await {
             unreachable!("event must be created for this test")
         }
 
@@ -90,7 +93,7 @@ mod tests {
             channel: mocks::mock_channel().name,
         };
 
-        let result = execute(repo, req);
+        let result = execute(repo, req).await;
 
         match result {
             Ok(ListResponse { data }) => {
