@@ -26,7 +26,7 @@ pub struct AppState {
 }
 
 pub async fn serve(config: Config) -> Result<()> {
-    let app = Router::new().route("/api/help", routing::post(handle_command));
+    let app = Router::new().route("/api", routing::post(handle_command));
 
     info!(
         "Connecting to database {}/{}",
