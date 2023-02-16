@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use serde::Serialize;
+
 use crate::repository::event::{FindAllError, FindError, Repository, UpdateError};
 
 use super::helpers::pick_update::PickUpdateHelper;
@@ -9,10 +11,12 @@ pub struct Request {
     pub participants: Vec<String>,
 }
 
+#[derive(Serialize, Debug)]
 pub struct Response {
     pub id: u32,
 }
 
+#[derive(Debug)]
 pub enum Error {
     NotFound,
     Unknown,

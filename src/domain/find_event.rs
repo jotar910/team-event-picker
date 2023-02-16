@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use serde::Serialize;
+
 use crate::domain::entities::{Channel, RepeatPeriod, User};
 use crate::repository::event::{FindAllError, FindError, Repository};
 
@@ -12,7 +14,7 @@ pub struct Request {
     pub id: u32,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Serialize, Debug, PartialEq)]
 pub struct Response {
     pub id: u32,
     pub name: String,

@@ -5,7 +5,7 @@ pub trait HasId {
     fn get_id(&self) -> u32;
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct Event {
     pub id: u32,
     pub name: String,
@@ -30,7 +30,8 @@ impl HasId for Event {
 
 pub struct EventPick {
     pub event: u32,
-    pub pick: u32,
+    pub cur_pick: u32,
+    pub prev_pick: u32,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]

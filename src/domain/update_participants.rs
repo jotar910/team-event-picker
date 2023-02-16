@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use serde::Serialize;
+
 use crate::domain::insert_users;
 use crate::repository::event::{FindError, Repository, UpdateError};
 
@@ -18,10 +20,12 @@ impl From<Request> for insert_users::Request {
     }
 }
 
+#[derive(Serialize, Debug)]
 pub struct Response {
     pub id: u32,
 }
 
+#[derive(Debug)]
 pub enum Error {
     NotFound,
     Unknown,
@@ -107,7 +111,7 @@ mod tests {
 
         assert_eq!(result.participants, vec![0, 1]);
 
-        if let Err(..) = repo.clone().save_pick(EventPick { event: 0, pick: 3 }).await {
+        if let Err(..) = repo.clone().save_pick(EventPick { event: 0, prev_pick: 0, cur_pick: 3 }).await {
             unreachable!("event pick data must be saved")
         }
 

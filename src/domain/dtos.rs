@@ -1,4 +1,6 @@
-#[derive(Debug, PartialEq)]
+use serde::Serialize;
+
+#[derive(Serialize, Debug, PartialEq)]
 pub struct ListResponse<T> {
     pub data: Vec<T>,
 }

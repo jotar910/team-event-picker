@@ -55,21 +55,21 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         }
     }
 
-    let mut rng = rand::thread_rng();
     let new_pick_idx: usize;
     let new_pick: u32;
 
     if not_picked.len() == 0 {
-        new_pick_idx = rng.gen_range(0..total_participants);
+        new_pick_idx = rand::thread_rng().gen_range(0..total_participants);
         new_pick = 1 << new_pick_idx;
     } else {
-        new_pick_idx = not_picked[rng.gen_range(0..not_picked.len())];
+        new_pick_idx = not_picked[rand::thread_rng().gen_range(0..not_picked.len())];
         new_pick = pick | (1 << new_pick_idx);
     }
 
     repo.save_pick(EventPick {
         event: event.id,
-        pick: new_pick,
+        prev_pick: pick,
+        cur_pick: new_pick,
     })
     .await
     .map_err(|error| match error {

@@ -1,16 +1,22 @@
 use std::sync::Arc;
 
+use serde_trim::{vec_string_trim, string_trim};
+use serde::{Deserialize, Serialize};
+
 use crate::repository::event::{FindError, InsertError, Repository};
 
 use crate::domain::entities::{Event, RepeatPeriod};
 use crate::domain::{insert_channel, insert_users};
 
-#[derive(Clone)]
+#[derive(Deserialize, Clone)]
 pub struct Request {
+    #[serde(deserialize_with = "string_trim")]
     pub name: String,
     pub date: String,
     pub repeat: String,
+    #[serde(deserialize_with = "vec_string_trim")]
     pub participants: Vec<String>,
+    #[serde(skip_deserializing)]
     pub channel: String,
 }
 
@@ -30,7 +36,7 @@ impl From<Request> for insert_channel::Request {
     }
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Debug)]
 pub struct Response {
     pub id: u32,
 }

@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use serde::Serialize;
+
 use crate::repository::event::{DeleteError, Repository};
 
 #[derive(Debug, PartialEq)]
@@ -11,7 +13,7 @@ pub struct Request {
     pub id: u32,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Serialize, Debug, PartialEq)]
 pub struct Response {
     pub id: u32,
 }

@@ -395,7 +395,7 @@ impl Repository for InMemoryRepository {
         {
             Some(event) => {
                 event.prev_pick = event.cur_pick;
-                event.cur_pick = pick_data.pick;
+                event.cur_pick = pick_data.cur_pick;
                 Ok(())
             }
             _ => Err(UpdateError::NotFound),
@@ -453,9 +453,11 @@ impl MongoDbRepository {
     pub async fn new(
         uri: &str,
         database: &str,
+        pool_size: u32
     ) -> Result<MongoDbRepository, mongodb::error::Error> {
         // Parse a connection string into an options struct.
-        let client_options = mongodb::options::ClientOptions::parse(uri).await?;
+        let mut client_options = mongodb::options::ClientOptions::parse(uri).await?;
+        client_options.max_pool_size = Some(pool_size);
 
         // Get a handle to the deployment.
         let client = mongodb::Client::with_options(client_options)?;
@@ -512,6 +514,21 @@ impl MongoDbRepository {
             .for_each(|(i, event)| event.set_id(highest_id + 1 + (i as u32)));
 
         Ok(values)
+    }
+
+    async fn find_events_by_name(&self, name: String, channel: u32) -> Result<Vec<Event>, FindAllError> {
+        let filter = doc! { "name": name, "channel": channel, "deleted": false };
+        let mut cursor = self
+            .db
+            .collection::<Event>("events")
+            .find(filter, None)
+            .await?;
+
+            let mut result: Vec<Event> = vec![];
+            while cursor.advance().await? {
+                result.push(cursor.deserialize_current()?);
+            }
+            Ok(result)
     }
 }
 
@@ -586,23 +603,23 @@ impl Repository for MongoDbRepository {
 
     async fn update_event(&self, event: Event) -> Result<(), UpdateError> {
         match self
-            .find_event_by_name(event.name.clone(), event.channel.clone())
+            .find_events_by_name(event.name.clone(), event.channel.clone())
             .await
         {
-            Ok(..) => return Err(UpdateError::Conflict),
-            Err(error) if error != FindError::NotFound => return Err(UpdateError::Unknown),
+            Ok(events) if events.len() > 1 || events.len() == 1 && events[0].id != event.id => return Err(UpdateError::Conflict),
+            Err(..) => return Err(UpdateError::Unknown),
             _ => (),
         };
 
         let filter = doc! {"id": event.id};
-        let update = bson::to_document(&event)?;
+        let update = doc! {"$set": bson::to_document(&event)?};
         let result = self
             .db
             .collection::<Event>("events")
             .update_one(filter, update, None)
             .await?;
 
-        if result.modified_count == 0 {
+        if result.matched_count == 0 {
             return Err(UpdateError::NotFound);
         }
 
@@ -616,7 +633,7 @@ impl Repository for MongoDbRepository {
         let update = doc! {"$set": {"deleted": true}};
         let result = collection.update_one(filter, update, None).await?;
 
-        if result.modified_count == 0 {
+        if result.matched_count == 0 {
             return Err(DeleteError::NotFound);
         }
 
@@ -767,25 +784,15 @@ impl Repository for MongoDbRepository {
     }
 
     async fn save_pick(&self, pick_data: EventPick) -> Result<(), UpdateError> {
-        let event = match self.find_event(pick_data.event.clone()).await {
-            Ok(event) => event,
-            Err(error) => {
-                return Err(match error {
-                    FindError::NotFound => UpdateError::NotFound,
-                    FindError::Unknown => UpdateError::Unknown,
-                })
-            }
-        };
-
         let filter = doc! {"id": pick_data.event, "deleted": false};
-        let update = doc! {"$set": { "prev_pick": event.cur_pick, "cur_pick": pick_data.pick }};
+        let update = doc! {"$set": {"prev_pick": pick_data.prev_pick, "cur_pick": pick_data.cur_pick}};
         let result = self
             .db
             .collection::<Event>("events")
             .update_one(filter, update, None)
             .await?;
 
-        if result.modified_count == 0 {
+        if result.matched_count == 0 {
             return Err(UpdateError::NotFound);
         }
 
@@ -811,7 +818,7 @@ impl Repository for MongoDbRepository {
             .update_one(filter, update, None)
             .await?;
 
-        if result.modified_count == 0 {
+        if result.matched_count == 0 {
             return Err(UpdateError::NotFound);
         }
 

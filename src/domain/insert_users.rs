@@ -35,15 +35,17 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         }
     }
 
-    let add_users: Vec<User> = repo
-        .insert_users(add_users)
-        .await
-        .map_err(|error| match error {
-            InsertError::Conflict | InsertError::Unknown => Error::Unknown,
-        })?;
+    if add_users.len() > 0 {
+        let add_users: Vec<User> =
+            repo.insert_users(add_users)
+                .await
+                .map_err(|error| match error {
+                    InsertError::Conflict | InsertError::Unknown => Error::Unknown,
+                })?;
 
-    for existing_user in add_users.into_iter() {
-        users_map.insert(existing_user.name.clone(), Some(existing_user));
+        for existing_user in add_users.into_iter() {
+            users_map.insert(existing_user.name.clone(), Some(existing_user));
+        }
     }
 
     Ok(Response {

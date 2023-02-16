@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use log::LevelFilter;
 use team_event_picker::config::Config;
-use team_event_picker::http;
+use team_event_picker::slack;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
     let config = Config::parse();
 
     // We spin up our API.
-    http::serve(config).await?;
+    slack::serve(config).await?;
 
     Ok(())
 }
