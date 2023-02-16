@@ -9,5 +9,6 @@ pub fn mock_find_event_response() -> Response {
         repeat: event_creation.repeat,
         participants: super::mock_participants(),
         channel: super::mock_channel(),
+        picked: vec![],
     }
 }

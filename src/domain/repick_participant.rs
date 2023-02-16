@@ -13,6 +13,7 @@ impl From<Request> for pick_participant::Request {
     }
 }
 
+#[derive(Debug)]
 pub struct Response {
     pub id: u32,
     pub name: String,

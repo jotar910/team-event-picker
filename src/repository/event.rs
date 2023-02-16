@@ -97,7 +97,7 @@ pub trait Repository: Send + Sync {
 
     async fn find_event(&self, id: u32) -> Result<Event, FindError>;
     async fn find_event_by_name(&self, name: String, channel: u32) -> Result<Event, FindError>;
-    async fn find_all_events(&self, channel: String) -> Result<Vec<Event>, FindAllError>;
+    async fn find_all_events(&self, channel: u32) -> Result<Vec<Event>, FindAllError>;
     async fn insert_event(&self, event: Event) -> Result<Event, InsertError>;
     async fn update_event(&self, event: Event) -> Result<(), UpdateError>;
     async fn delete_event(&self, id: u32) -> Result<Event, DeleteError>;
@@ -129,17 +129,6 @@ impl InMemoryRepository {
             channels: Mutex::new(vec![]),
             users: Mutex::new(vec![]),
         }
-    }
-
-    fn find_channel_by_name(&self, name: String) -> Option<Channel> {
-        let lock: MutexGuard<Vec<Channel>> = match self.channels.lock() {
-            Ok(lock) => lock,
-            _ => return None,
-        };
-
-        lock.iter()
-            .find(|&channel| channel.name == name)
-            .map(|channel| channel.clone())
     }
 }
 
@@ -174,18 +163,14 @@ impl Repository for InMemoryRepository {
         }
     }
 
-    async fn find_all_events(&self, channel: String) -> Result<Vec<Event>, FindAllError> {
+    async fn find_all_events(&self, channel: u32) -> Result<Vec<Event>, FindAllError> {
         let lock = match self.events.lock() {
             Ok(lock) => lock,
             _ => return Err(FindAllError::Unknown),
         };
-        let channel = match self.find_channel_by_name(channel) {
-            Some(channel) => channel,
-            None => return Ok(vec![]),
-        };
         Ok(lock
             .iter()
-            .filter(|event| event.channel == channel.id)
+            .filter(|event| event.channel == channel)
             .map(|event| event.clone())
             .collect())
     }
@@ -564,7 +549,7 @@ impl Repository for MongoDbRepository {
         }
     }
 
-    async fn find_all_events(&self, channel: String) -> Result<Vec<Event>, FindAllError> {
+    async fn find_all_events(&self, channel: u32) -> Result<Vec<Event>, FindAllError> {
         let filter = doc! { "channel": channel, "deleted": false };
         let mut cursor = self
             .db
@@ -921,7 +906,7 @@ mod tests {
 
         // Testing find_all here ---
 
-        let result = repo.find_all_events(mocks::mock_channel().name).await;
+        let result = repo.find_all_events(mocks::mock_channel().id).await;
 
         match result {
             Ok(events) => assert_eq!(

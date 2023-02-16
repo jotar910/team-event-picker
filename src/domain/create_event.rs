@@ -30,6 +30,7 @@ impl From<Request> for insert_channel::Request {
     }
 }
 
+#[derive(Debug)]
 pub struct Response {
     pub id: u32,
 }
@@ -60,6 +61,11 @@ impl From<insert_channel::Error> for Error {
 pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
     let channel = match repo.clone().find_channel_by_name(req.channel.clone()).await {
         Ok(channel) => channel,
+        Err(FindError::NotFound) => {
+            insert_channel::execute(repo.clone(), req.clone().into())
+                .await?
+                .channel
+        }
         Err(error) => {
             return Err(match error {
                 FindError::NotFound => Error::BadRequest,
@@ -88,16 +94,13 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         cur_pick: 0,
         deleted: false,
     };
-    event.participants = insert_users::execute(repo.clone(), req.clone().into())
+    event.participants = insert_users::execute(repo.clone(), req.into())
         .await?
         .users
         .iter()
         .map(|user| user.id)
         .collect();
-    event.channel = insert_channel::execute(repo.clone(), req.into())
-        .await?
-        .channel
-        .id;
+    event.channel = channel.id;
 
     match repo.insert_event(event).await {
         Ok(Event { id, .. }) => Ok(Response { id }),

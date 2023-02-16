@@ -26,7 +26,11 @@ pub async fn execute(
     repo: Arc<dyn Repository>,
     req: Request,
 ) -> Result<ListResponse<Response>, Error> {
-    let events = match repo.find_all_events(req.channel).await {
+    let channel = match repo.clone().find_channel_by_name(req.channel).await {
+        Ok(channel) => channel,
+        _ => return Ok(ListResponse::new(vec![])),
+    };
+    let events = match repo.find_all_events(channel.id).await {
         Err(err) => {
             return match err {
                 FindAllError::Unknown => Err(Error::Unknown),
@@ -72,10 +76,13 @@ mod tests {
         let mut mock = mocks::mock_event();
         mock.name += "2";
         mock.channel += 1;
-        if let Err(..) = repo.insert_channel(Channel {
-            id: 1,
-            name: mocks::mock_channel().name + "2",
-        }).await {
+        if let Err(..) = repo
+            .insert_channel(Channel {
+                id: 1,
+                name: mocks::mock_channel().name + "2",
+            })
+            .await
+        {
             unreachable!("channel must be created for this test")
         }
         if let Err(..) = repo.insert_event(mock).await {

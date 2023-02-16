@@ -20,6 +20,7 @@ pub struct Response {
     pub repeat: RepeatPeriod,
     pub participants: Vec<User>,
     pub channel: Channel,
+    pub picked: Vec<User>,
 }
 
 pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
@@ -32,17 +33,20 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         }
         Ok(event) => event,
     };
+
+    let participants = repo
+        .find_users(event.participants)
+        .await
+        .map_err(|error| match error {
+            FindAllError::Unknown => Error::Unknown,
+        })?;
+
     Ok(Response {
         id: event.id,
         name: event.name,
         date: event.date,
         repeat: event.repeat,
-        participants: repo
-            .find_users(event.participants)
-            .await
-            .map_err(|error| match error {
-                FindAllError::Unknown => Error::Unknown,
-            })?,
+        participants: participants.clone(),
         channel: repo
             .find_channel(event.channel)
             .await
@@ -50,6 +54,12 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
                 FindError::NotFound => Error::NotFound,
                 FindError::Unknown => Error::Unknown,
             })?,
+        picked: participants
+            .into_iter()
+            .enumerate()
+            .filter(|(i, _)| event.cur_pick & (1 << i) > 0)
+            .map(|(_, participant)| participant)
+            .collect(),
     })
 }
 

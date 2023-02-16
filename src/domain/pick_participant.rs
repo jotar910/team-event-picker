@@ -10,6 +10,7 @@ pub struct Request {
     pub event: u32,
 }
 
+#[derive(Debug)]
 pub struct Response {
     pub id: u32,
     pub name: String,
