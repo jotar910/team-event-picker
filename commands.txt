@@ -1,1 +1,2 @@
 docker exec -it team-event-picker-mongodb_db-1 mongosh "mongodb://<change-me>:<change-me>@localhost:27017"
+docker build -t joaor_dev/team-event-picker .

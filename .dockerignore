@@ -1,0 +1,8 @@
+target
+Dockerfile
+.dockerignore
+.git
+.gitignore
+docker-compose.yml
+docker-compose-local.yml
+.env.tmpl
