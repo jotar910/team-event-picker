@@ -10,6 +10,7 @@ use super::helpers::pick_update::PickUpdateHelper;
 pub struct Request {
     pub event: u32,
     pub participants: Vec<String>,
+    pub channel: String,
 }
 
 impl From<Request> for insert_users::Request {
@@ -33,7 +34,18 @@ pub enum Error {
 
 pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
     let event_id = req.event;
-    let event = repo.clone().find_event(event_id).await;
+
+    let channel = repo
+        .find_channel_by_name(req.channel.clone())
+        .await
+        .map_err(|error| {
+            return match error {
+                FindError::NotFound => Error::NotFound,
+                FindError::Unknown => Error::Unknown,
+            };
+        })?;
+
+    let event = repo.clone().find_event(event_id, channel.id).await;
 
     if let Err(error) = event {
         return Err(match error {
@@ -88,6 +100,7 @@ mod tests {
         let req = Request {
             event: 0,
             participants: mocks::mock_users_names(),
+            channel: String::from("Channel"),
         };
 
         let result = execute(repo.clone(), req).await;
@@ -97,7 +110,7 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match repo.find_event(0).await {
+        match repo.find_event(0, 0).await {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![2, 3, 1]),
             _ => unreachable!(),
         }
@@ -111,7 +124,15 @@ mod tests {
 
         assert_eq!(result.participants, vec![0, 1]);
 
-        if let Err(..) = repo.clone().save_pick(EventPick { event: 0, prev_pick: 0, cur_pick: 3 }).await {
+        if let Err(..) = repo
+            .clone()
+            .save_pick(EventPick {
+                event: 0,
+                prev_pick: 0,
+                cur_pick: 3,
+            })
+            .await
+        {
             unreachable!("event pick data must be saved")
         }
 
@@ -120,6 +141,7 @@ mod tests {
         let req = Request {
             event: 0,
             participants: mocks::mock_users_names(),
+            channel: String::from("Channel"),
         };
 
         let result = execute(repo.clone(), req).await;
@@ -129,7 +151,7 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match repo.find_event(0).await {
+        match repo.find_event(0, 0).await {
             Ok(Event {
                 cur_pick,
                 prev_pick,
@@ -148,6 +170,7 @@ mod tests {
                 .map(|p| p.name)
                 .rev()
                 .collect(),
+            channel: String::from("Channel"),
         };
 
         let result = execute(repo.clone(), req).await;
@@ -157,7 +180,7 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match repo.find_event(0).await {
+        match repo.find_event(0, 0).await {
             Ok(Event {
                 cur_pick,
                 prev_pick,

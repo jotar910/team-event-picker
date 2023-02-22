@@ -45,8 +45,11 @@ pub async fn serve(config: Config) -> Result<()> {
 
     Server::bind(&format!("0.0.0.0:{}", config.port).parse().unwrap())
         .serve(
-            app.with_state(Arc::new(AppState { secret: config.signature, repo: repo.clone() }))
-                .into_make_service(),
+            app.with_state(Arc::new(AppState {
+                secret: config.signature,
+                repo: repo.clone(),
+            }))
+            .into_make_service(),
         )
         .await
 }
@@ -135,8 +138,22 @@ pub async fn handle_command(
             .await
         }
         "help" => handle_help(&args[space_idx..]).await,
-        "pick" => handle_pick(state.repo.clone(), &args[space_idx..]).await,
-        "repick" => handle_repick(state.repo.clone(), &args[space_idx..]).await,
+        "pick" => {
+            handle_pick(
+                state.repo.clone(),
+                &payload.channel_name,
+                &args[space_idx..],
+            )
+            .await
+        }
+        "repick" => {
+            handle_repick(
+                state.repo.clone(),
+                &payload.channel_name,
+                &args[space_idx..],
+            )
+            .await
+        }
         _ => USAGE_STR.to_string(),
     };
     Json(CommandResponse {
@@ -196,23 +213,39 @@ fn verify_signature(headers: HeaderMap, body: String, secret: &str) -> bool {
     true
 }
 
-async fn handle_pick(repo: Arc<dyn Repository>, args: &str) -> String {
+async fn handle_pick(repo: Arc<dyn Repository>, channel_name: &str, args: &str) -> String {
     let id: u32 = match args.trim().parse() {
         Ok(id) => id,
         Err(..) => return "please insert a valid event id".to_string(),
     };
-    match pick_participant::execute(repo, pick_participant::Request { event: id }).await {
+    match pick_participant::execute(
+        repo,
+        pick_participant::Request {
+            event: id,
+            channel: channel_name.to_string(),
+        },
+    )
+    .await
+    {
         Ok(res) => format!("Picked: <{}>", res.name),
         Err(error) => format!("{:?}", error),
     }
 }
 
-async fn handle_repick(repo: Arc<dyn Repository>, args: &str) -> String {
+async fn handle_repick(repo: Arc<dyn Repository>, channel_name: &str, args: &str) -> String {
     let id: u32 = match args.trim().parse() {
         Ok(id) => id,
         Err(..) => return "please insert a valid event id".to_string(),
     };
-    match repick_participant::execute(repo, repick_participant::Request { event: id }).await {
+    match repick_participant::execute(
+        repo,
+        repick_participant::Request {
+            event: id,
+            channel: channel_name.to_string(),
+        },
+    )
+    .await
+    {
         Ok(res) => format!("Picked: <{}>", res.name),
         Err(error) => format!("{:?}", error),
     }
@@ -265,7 +298,7 @@ async fn handle_edit_event(repo: Arc<dyn Repository>, channel_name: &str, args: 
 
 async fn handle_edit_participants(
     repo: Arc<dyn Repository>,
-    _channel_name: &str,
+    channel_name: &str,
     args: &str,
 ) -> String {
     let args = args.trim();
@@ -288,6 +321,7 @@ async fn handle_edit_participants(
         repo,
         update_participants::Request {
             event: id,
+            channel: channel_name.to_string(),
             participants,
         },
     )
@@ -309,12 +343,20 @@ async fn handle_delete(repo: Arc<dyn Repository>, channel_name: &str, args: &str
     }
 }
 
-async fn handle_delete_event(repo: Arc<dyn Repository>, _channel_name: &str, args: &str) -> String {
+async fn handle_delete_event(repo: Arc<dyn Repository>, channel_name: &str, args: &str) -> String {
     let id: u32 = match args.trim().parse() {
         Ok(id) => id,
         Err(..) => return "please insert a valid event id".to_string(),
     };
-    match delete_event::execute(repo, delete_event::Request { id }).await {
+    match delete_event::execute(
+        repo,
+        delete_event::Request {
+            id,
+            channel: channel_name.to_string(),
+        },
+    )
+    .await
+    {
         Ok(res) => serde_json::to_string(&res).expect("parsing response"),
         Err(error) => format!("{:?}", error),
     }
@@ -322,7 +364,7 @@ async fn handle_delete_event(repo: Arc<dyn Repository>, _channel_name: &str, arg
 
 async fn handle_delete_participants(
     repo: Arc<dyn Repository>,
-    _channel_name: &str,
+    channel_name: &str,
     args: &str,
 ) -> String {
     let args = args.trim();
@@ -345,6 +387,7 @@ async fn handle_delete_participants(
         repo,
         delete_participants::Request {
             event: id,
+            channel: channel_name.to_string(),
             participants,
         },
     )
@@ -397,12 +440,20 @@ async fn handle_show(repo: Arc<dyn Repository>, channel_name: &str, args: &str) 
     }
 }
 
-async fn handle_show_event(repo: Arc<dyn Repository>, _channel_name: &str, args: &str) -> String {
+async fn handle_show_event(repo: Arc<dyn Repository>, channel_name: &str, args: &str) -> String {
     let id: u32 = match args.trim().parse() {
         Ok(id) => id,
         Err(..) => return "please insert a valid event id".to_string(),
     };
-    match find_event::execute(repo, find_event::Request { id }).await {
+    match find_event::execute(
+        repo,
+        find_event::Request {
+            id,
+            channel: channel_name.to_string(),
+        },
+    )
+    .await
+    {
         Ok(res) => serde_json::to_string(&res).expect("parsing response"),
         Err(error) => format!("{:?}", error),
     }

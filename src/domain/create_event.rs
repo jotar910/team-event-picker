@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use serde_trim::{vec_string_trim, string_trim};
 use serde::{Deserialize, Serialize};
+use serde_trim::{string_trim, vec_string_trim};
 
 use crate::repository::event::{FindError, InsertError, Repository};
 
@@ -170,7 +170,7 @@ mod tests {
             _ => unreachable!(),
         };
 
-        match repo.find_event(0).await {
+        match repo.find_event(0, 0).await {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![0, 1]),
             _ => unreachable!(),
         }
@@ -194,7 +194,7 @@ mod tests {
             _ => unreachable!(),
         };
 
-        match repo.clone().find_event(0).await {
+        match repo.clone().find_event(0, 0).await {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![0, 0]),
             _ => unreachable!(),
         }
@@ -211,7 +211,7 @@ mod tests {
             _ => unreachable!(),
         };
 
-        match repo.clone().find_event(1).await {
+        match repo.clone().find_event(1, 0).await {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![1, 0]),
             _ => unreachable!(),
         }

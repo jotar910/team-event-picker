@@ -12,6 +12,7 @@ pub enum Error {
 }
 pub struct Request {
     pub id: u32,
+    pub channel: String,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
@@ -26,7 +27,17 @@ pub struct Response {
 }
 
 pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    let event = match repo.find_event(req.id).await {
+    let channel = repo
+        .find_channel_by_name(req.channel.clone())
+        .await
+        .map_err(|error| {
+            return match error {
+                FindError::NotFound => Error::NotFound,
+                FindError::Unknown => Error::Unknown,
+            };
+        })?;
+
+    let event = match repo.find_event(req.id, channel.id).await {
         Err(err) => {
             return match err {
                 FindError::NotFound => Err(Error::NotFound),
@@ -79,7 +90,7 @@ mod tests {
 
         // Testing find here --
 
-        let req = Request { id: 0 };
+        let req = Request { id: 0, channel: String::from("Channel") };
 
         let result = execute(repo, req).await;
 
@@ -92,7 +103,7 @@ mod tests {
     #[tokio::test]
     async fn it_should_return_not_found_error_for_the_provided_id() {
         let repo = Arc::new(InMemoryRepository::new());
-        let req = Request { id: 0 };
+        let req = Request { id: 0, channel: String::from("Channel") };
 
         let result = execute(repo, req).await;
 

@@ -8,12 +8,14 @@ use super::helpers::pick_update::PickUpdateHelper;
 
 pub struct Request {
     pub event: u32,
+    pub channel: String,
     pub participants: Vec<String>,
 }
 
 #[derive(Serialize, Debug)]
 pub struct Response {
     pub id: u32,
+    pub channel: String,
 }
 
 #[derive(Debug)]
@@ -25,7 +27,17 @@ pub enum Error {
 pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
     let event_id = req.event;
 
-    let event = repo.find_event(event_id).await;
+    let channel = repo
+        .find_channel_by_name(req.channel.clone())
+        .await
+        .map_err(|error| {
+            return match error {
+                FindError::NotFound => Error::NotFound,
+                FindError::Unknown => Error::Unknown,
+            };
+        })?;
+
+    let event = repo.find_event(event_id, channel.id).await;
 
     if let Err(error) = event {
         return Err(match error {
@@ -57,7 +69,7 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
             UpdateError::NotFound => Err(Error::NotFound),
             UpdateError::Conflict | UpdateError::Unknown => Err(Error::Unknown),
         },
-        Ok(..) => Ok(Response { id: event_id }),
+        Ok(..) => Ok(Response { id: event_id, channel: channel.name }),
     }
 }
 
@@ -79,6 +91,7 @@ mod tests {
         let req = Request {
             event: 0,
             participants: mocks::mock_users_names(),
+            channel: String::from("Channel")
         };
 
         let result = execute(repo.clone(), req).await;
@@ -88,7 +101,7 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match repo.find_event(0).await {
+        match repo.find_event(0, 0).await {
             Ok(Event { participants, .. }) => assert_eq!(participants, vec![0]),
             _ => unreachable!(),
         }

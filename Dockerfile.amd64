@@ -1,19 +1,20 @@
-# generate a recipe file for dependencies
-FROM rust as planner
+FROM amd64/rust AS builder-chef
 WORKDIR /app
 RUN cargo install cargo-chef
+
+# generate a recipe file for dependencies
+FROM builder-chef as planner
 COPY . .
-RUN cargo chef prepare --recipe-path recipe.json
+RUN PKG_CONFIG_ALLOW_CROSS=1 cargo chef prepare --recipe-path recipe.json
 
 # build our dependencies
-FROM rust as cacher
-WORKDIR /app
-RUN cargo install cargo-chef
+FROM builder-chef as cacher
 COPY --from=planner /app/recipe.json recipe.json
+ENV RUST_BACKTRACE full
 RUN cargo chef cook --release --recipe-path recipe.json
 
 # use the main official rust docker image as our builder
-FROM rust:slim as builder
+FROM amd64/rust as builder
 
 ENV USER=web
 ENV UID=1001
@@ -30,15 +31,8 @@ COPY . /app
 WORKDIR /app
 COPY --from=cacher /app/target target
 COPY --from=cacher /usr/local/cargo /usr/local/cargo
-RUN cargo build --release
 
-# FROM rust:alpine as runner
-
-# COPY --from=builder /etc/passwd /etc/passwd
-# COPY --from=builder /etc/group /etc/group
-
-# WORKDIR /app
-# COPY --from=builder /app /app
+RUN PKG_CONFIG_ALLOW_CROSS=1 cargo build --release
 
 USER web
 

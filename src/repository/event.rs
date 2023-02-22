@@ -95,12 +95,12 @@ pub trait Transition: Drop {
 pub trait Repository: Send + Sync {
     fn transition(&self) -> Box<dyn Transition>;
 
-    async fn find_event(&self, id: u32) -> Result<Event, FindError>;
+    async fn find_event(&self, id: u32, channel: u32) -> Result<Event, FindError>;
     async fn find_event_by_name(&self, name: String, channel: u32) -> Result<Event, FindError>;
     async fn find_all_events(&self, channel: u32) -> Result<Vec<Event>, FindAllError>;
     async fn insert_event(&self, event: Event) -> Result<Event, InsertError>;
     async fn update_event(&self, event: Event) -> Result<(), UpdateError>;
-    async fn delete_event(&self, id: u32) -> Result<Event, DeleteError>;
+    async fn delete_event(&self, id: u32, channel: u32) -> Result<Event, DeleteError>;
 
     async fn find_channel(&self, id: u32) -> Result<Channel, FindError>;
     async fn find_channel_by_name(&self, name: String) -> Result<Channel, FindError>;
@@ -113,7 +113,7 @@ pub trait Repository: Send + Sync {
     async fn insert_users(&self, users: Vec<User>) -> Result<Vec<User>, InsertError>;
 
     async fn save_pick(&self, pick_data: EventPick) -> Result<(), UpdateError>;
-    async fn rev_pick(&self, event_id: u32) -> Result<(), UpdateError>;
+    async fn rev_pick(&self, event_id: u32, channel_id: u32) -> Result<(), UpdateError>;
 }
 
 pub struct InMemoryRepository {
@@ -138,12 +138,15 @@ impl Repository for InMemoryRepository {
         Box::new(InMemoryTransaction::new())
     }
 
-    async fn find_event(&self, id: u32) -> Result<Event, FindError> {
+    async fn find_event(&self, id: u32, channel: u32) -> Result<Event, FindError> {
         let lock = match self.events.lock() {
             Ok(lock) => lock,
             _ => return Err(FindError::Unknown),
         };
-        match lock.iter().find(|&event| event.id == id && !event.deleted) {
+        match lock
+            .iter()
+            .find(|&event| event.id == id && event.channel == channel && !event.deleted)
+        {
             Some(event) => Ok(event.clone()),
             _ => Err(FindError::NotFound),
         }
@@ -230,7 +233,7 @@ impl Repository for InMemoryRepository {
         Ok(())
     }
 
-    async fn delete_event(&self, id: u32) -> Result<Event, DeleteError> {
+    async fn delete_event(&self, id: u32, channel: u32) -> Result<Event, DeleteError> {
         let mut lock = match self.events.lock() {
             Ok(lock) => lock,
             _ => return Err(DeleteError::Unknown),
@@ -238,7 +241,7 @@ impl Repository for InMemoryRepository {
 
         match lock
             .iter_mut()
-            .find(|event| event.id == id && !event.deleted)
+            .find(|event| event.id == id && event.channel == channel && !event.deleted)
         {
             Some(event) => {
                 event.deleted = true;
@@ -402,7 +405,7 @@ impl Repository for InMemoryRepository {
         }
     }
 
-    async fn rev_pick(&self, event_id: u32) -> Result<(), UpdateError> {
+    async fn rev_pick(&self, event_id: u32, channel_id: u32) -> Result<(), UpdateError> {
         let mut lock = match self.events.lock() {
             Ok(lock) => lock,
             Err(..) => return Err(UpdateError::Unknown),
@@ -410,7 +413,7 @@ impl Repository for InMemoryRepository {
 
         match lock
             .iter_mut()
-            .find(|event| event.id == event_id && !event.deleted)
+            .find(|event| event.id == event_id && event.channel == channel_id && !event.deleted)
         {
             Some(event) => {
                 event.cur_pick = event.prev_pick;
@@ -453,7 +456,7 @@ impl MongoDbRepository {
     pub async fn new(
         uri: &str,
         database: &str,
-        pool_size: u32
+        pool_size: u32,
     ) -> Result<MongoDbRepository, mongodb::error::Error> {
         // Parse a connection string into an options struct.
         let mut client_options = mongodb::options::ClientOptions::parse(uri).await?;
@@ -516,7 +519,11 @@ impl MongoDbRepository {
         Ok(values)
     }
 
-    async fn find_events_by_name(&self, name: String, channel: u32) -> Result<Vec<Event>, FindAllError> {
+    async fn find_events_by_name(
+        &self,
+        name: String,
+        channel: u32,
+    ) -> Result<Vec<Event>, FindAllError> {
         let filter = doc! { "name": name, "channel": channel, "deleted": false };
         let mut cursor = self
             .db
@@ -524,11 +531,11 @@ impl MongoDbRepository {
             .find(filter, None)
             .await?;
 
-            let mut result: Vec<Event> = vec![];
-            while cursor.advance().await? {
-                result.push(cursor.deserialize_current()?);
-            }
-            Ok(result)
+        let mut result: Vec<Event> = vec![];
+        while cursor.advance().await? {
+            result.push(cursor.deserialize_current()?);
+        }
+        Ok(result)
     }
 }
 
@@ -538,8 +545,8 @@ impl Repository for MongoDbRepository {
         Box::new(InMemoryTransaction::new())
     }
 
-    async fn find_event(&self, id: u32) -> Result<Event, FindError> {
-        let filter = doc! { "id": id, "deleted": false };
+    async fn find_event(&self, id: u32, channel: u32) -> Result<Event, FindError> {
+        let filter = doc! { "id": id, "channel": channel, "deleted": false };
         let cursor = self
             .db
             .collection::<Event>("events")
@@ -606,7 +613,9 @@ impl Repository for MongoDbRepository {
             .find_events_by_name(event.name.clone(), event.channel.clone())
             .await
         {
-            Ok(events) if events.len() > 1 || events.len() == 1 && events[0].id != event.id => return Err(UpdateError::Conflict),
+            Ok(events) if events.len() > 1 || events.len() == 1 && events[0].id != event.id => {
+                return Err(UpdateError::Conflict)
+            }
             Err(..) => return Err(UpdateError::Unknown),
             _ => (),
         };
@@ -626,10 +635,10 @@ impl Repository for MongoDbRepository {
         Ok(())
     }
 
-    async fn delete_event(&self, id: u32) -> Result<Event, DeleteError> {
+    async fn delete_event(&self, id: u32, channel: u32) -> Result<Event, DeleteError> {
         let collection = self.db.collection::<Event>("events");
 
-        let filter = doc! { "id": id, "deleted": false };
+        let filter = doc! { "id": id, "channel": channel, "deleted": false };
         let update = doc! {"$set": {"deleted": true}};
         let result = collection.update_one(filter, update, None).await?;
 
@@ -785,7 +794,8 @@ impl Repository for MongoDbRepository {
 
     async fn save_pick(&self, pick_data: EventPick) -> Result<(), UpdateError> {
         let filter = doc! {"id": pick_data.event, "deleted": false};
-        let update = doc! {"$set": {"prev_pick": pick_data.prev_pick, "cur_pick": pick_data.cur_pick}};
+        let update =
+            doc! {"$set": {"prev_pick": pick_data.prev_pick, "cur_pick": pick_data.cur_pick}};
         let result = self
             .db
             .collection::<Event>("events")
@@ -799,8 +809,8 @@ impl Repository for MongoDbRepository {
         Ok(())
     }
 
-    async fn rev_pick(&self, event_id: u32) -> Result<(), UpdateError> {
-        let event = match self.find_event(event_id.clone()).await {
+    async fn rev_pick(&self, event_id: u32, channel_id: u32) -> Result<(), UpdateError> {
+        let event = match self.find_event(event_id, channel_id).await {
             Ok(event) => event,
             Err(error) => {
                 return Err(match error {
@@ -810,7 +820,7 @@ impl Repository for MongoDbRepository {
             }
         };
 
-        let filter = doc! {"id": event_id, "deleted": false};
+        let filter = doc! {"id": event_id, "channel": channel_id, "deleted": false};
         let update = doc! {"$set": { "cur_pick": event.prev_pick }};
         let result = self
             .db
@@ -835,7 +845,7 @@ mod tests {
     async fn it_should_return_not_found_error_when_find_event_does_not_exist() {
         let repo = InMemoryRepository::new();
 
-        let result = repo.find_event(0).await;
+        let result = repo.find_event(0, 0).await;
 
         match result {
             Err(err) => assert_eq!(err, FindError::NotFound),
@@ -864,7 +874,7 @@ mod tests {
 
         // Testing find here ---
 
-        let result = repo.find_event(1).await;
+        let result = repo.find_event(1, 0).await;
 
         match result {
             Ok(Event { id, .. }) => assert_eq!(id, 1),
@@ -880,10 +890,13 @@ mod tests {
             unreachable!("channel must be created")
         }
 
-        if let Err(_) = repo.insert_channel(Channel {
-            id: 1,
-            name: mocks::mock_channel().name + "2",
-        }).await {
+        if let Err(_) = repo
+            .insert_channel(Channel {
+                id: 1,
+                name: mocks::mock_channel().name + "2",
+            })
+            .await
+        {
             unreachable!("channel must be created")
         }
 
@@ -928,24 +941,27 @@ mod tests {
     async fn it_should_find_participants_that_have_the_same_ids_as_the_provided() {
         let repo = InMemoryRepository::new();
 
-        if let Err(_) = repo.insert_users(vec![
-            User {
-                id: 0,
-                name: "João".to_string(),
-            },
-            User {
-                id: 0,
-                name: "Joana".to_string(),
-            },
-            User {
-                id: 0,
-                name: "Francisca".to_string(),
-            },
-            User {
-                id: 0,
-                name: "Simão".to_string(),
-            },
-        ]).await {
+        if let Err(_) = repo
+            .insert_users(vec![
+                User {
+                    id: 0,
+                    name: "João".to_string(),
+                },
+                User {
+                    id: 0,
+                    name: "Joana".to_string(),
+                },
+                User {
+                    id: 0,
+                    name: "Francisca".to_string(),
+                },
+                User {
+                    id: 0,
+                    name: "Simão".to_string(),
+                },
+            ])
+            .await
+        {
             unreachable!("users must be created")
         }
 
@@ -979,10 +995,13 @@ mod tests {
             unreachable!("channel must be created")
         }
 
-        if let Err(_) = repo.insert_channel(Channel {
-            id: 1,
-            name: mocks::mock_channel().name + "2",
-        }).await {
+        if let Err(_) = repo
+            .insert_channel(Channel {
+                id: 1,
+                name: mocks::mock_channel().name + "2",
+            })
+            .await
+        {
             unreachable!("channel must be created")
         }
 
@@ -1010,20 +1029,20 @@ mod tests {
             unreachable!("event must be created")
         }
 
-        if let Err(_) = repo.find_event(0).await {
+        if let Err(_) = repo.find_event(0, 0).await {
             unreachable!("event must exist")
         }
 
         // Testing delete here ---
 
-        let result = repo.delete_event(0).await;
+        let result = repo.delete_event(0, 0).await;
 
         match result {
             Ok(Event { id, .. }) => assert_eq!(id, 0),
             _ => unreachable!(),
         }
 
-        match repo.find_event(0).await {
+        match repo.find_event(0, 0).await {
             Err(err) => assert_eq!(err, FindError::NotFound),
             _ => unreachable!("should not exist"),
         }

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use serde_trim::{vec_string_trim, string_trim};
 use serde::{Deserialize, Serialize};
+use serde_trim::{string_trim, vec_string_trim};
 
 use crate::repository::event::{FindError, Repository, UpdateError};
 
@@ -67,8 +67,17 @@ impl From<insert_channel::Error> for Error {
 }
 
 pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    let event_id = req.id;
-    let existing_event = match repo.clone().find_event(event_id).await {
+    let channel = repo
+        .find_channel_by_name(req.channel.clone())
+        .await
+        .map_err(|error| {
+            return match error {
+                FindError::NotFound => Error::NotFound,
+                FindError::Unknown => Error::Unknown,
+            };
+        })?;
+
+    let existing_event = match repo.clone().find_event(req.id.clone(), channel.id).await {
         Ok(event) => event,
         Err(error) => {
             return Err(match error {
@@ -95,13 +104,13 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         .iter()
         .map(|user| user.id)
         .collect();
-    event.channel = insert_channel::execute(repo.clone(), req.into())
+    event.channel = insert_channel::execute(repo.clone(), req.clone().into())
         .await?
         .channel
         .id;
 
     match repo.update_event(event).await {
-        Ok(..) => Ok(Response { id: event_id }),
+        Ok(..) => Ok(Response { id: req.id }),
         Err(err) => Err(match err {
             UpdateError::Conflict => Error::Conflict,
             UpdateError::NotFound => Error::NotFound,
@@ -210,7 +219,7 @@ mod tests {
             _ => unreachable!(),
         };
 
-        match repo.find_event(0).await {
+        match repo.find_event(0, 0).await {
             Ok(Event { name, .. }) => assert_eq!(name, "Johny"),
             _ => unreachable!(),
         }
