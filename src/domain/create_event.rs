@@ -3,7 +3,8 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use serde_trim::{string_trim, vec_string_trim};
 
-use crate::repository::event::{FindError, InsertError, Repository};
+use crate::repository::errors::{FindError, InsertError};
+use crate::repository::event::Repository;
 
 use crate::domain::entities::{Event, RepeatPeriod};
 use crate::domain::{insert_channel, insert_users};

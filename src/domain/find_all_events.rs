@@ -4,7 +4,8 @@ use serde::Serialize;
 
 use crate::domain::dtos::ListResponse;
 use crate::domain::entities::RepeatPeriod;
-use crate::repository::event::{FindAllError, Repository};
+use crate::repository::errors::FindAllError;
+use crate::repository::event::Repository;
 
 pub struct Request {
     pub channel: String,

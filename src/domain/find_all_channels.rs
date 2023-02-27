@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use crate::domain::dtos::ListResponse;
 use crate::domain::entities::Channel;
-use crate::repository::event::{FindAllError, Repository};
+use crate::repository::errors::FindAllError;
+use crate::repository::event::Repository;
 
 #[derive(Debug, PartialEq)]
 pub enum Error {

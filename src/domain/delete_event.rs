@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use serde::Serialize;
 
-use crate::repository::event::{DeleteError, Repository, FindError};
+use crate::repository::errors::{DeleteError, FindError};
+use crate::repository::event::Repository;
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
@@ -29,7 +30,7 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
                 FindError::Unknown => Error::Unknown,
             };
         })?;
-        
+
     let event = match repo.delete_event(req.id, channel.id).await {
         Err(err) => {
             return match err {
@@ -46,7 +47,7 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
 mod tests {
     use super::*;
     use crate::domain::mocks;
-    use crate::repository::event::{FindError, InMemoryRepository};
+    use crate::repository::event::InMemoryRepository;
 
     #[tokio::test]
     async fn it_should_delete_the_event_for_the_provided_id() {
@@ -56,7 +57,10 @@ mod tests {
 
         // Testing delete here --
 
-        let req = Request { id: 0, channel: String::from("Channel") };
+        let req = Request {
+            id: 0,
+            channel: String::from("Channel"),
+        };
 
         let result = execute(repo.clone(), req).await;
 
@@ -74,7 +78,10 @@ mod tests {
     #[tokio::test]
     async fn it_should_return_not_found_error_for_the_provided_id() {
         let repo = Arc::new(InMemoryRepository::new());
-        let req = Request { id: 0, channel: String::from("Channel") };
+        let req = Request {
+            id: 0,
+            channel: String::from("Channel"),
+        };
 
         let result = execute(repo, req).await;
 

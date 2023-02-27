@@ -3,7 +3,8 @@ use std::sync::Arc;
 use serde::Serialize;
 
 use crate::domain::entities::{Channel, RepeatPeriod, User};
-use crate::repository::event::{FindAllError, FindError, Repository};
+use crate::repository::errors::{FindAllError, FindError};
+use crate::repository::event::Repository;
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
@@ -90,7 +91,10 @@ mod tests {
 
         // Testing find here --
 
-        let req = Request { id: 0, channel: String::from("Channel") };
+        let req = Request {
+            id: 0,
+            channel: String::from("Channel"),
+        };
 
         let result = execute(repo, req).await;
 
@@ -103,7 +107,10 @@ mod tests {
     #[tokio::test]
     async fn it_should_return_not_found_error_for_the_provided_id() {
         let repo = Arc::new(InMemoryRepository::new());
-        let req = Request { id: 0, channel: String::from("Channel") };
+        let req = Request {
+            id: 0,
+            channel: String::from("Channel"),
+        };
 
         let result = execute(repo, req).await;
 

@@ -3,7 +3,8 @@ use std::sync::Arc;
 use serde::Serialize;
 
 use crate::domain::insert_users;
-use crate::repository::event::{FindError, Repository, UpdateError};
+use crate::repository::errors::{FindError, UpdateError};
+use crate::repository::event::Repository;
 
 use super::helpers::pick_update::PickUpdateHelper;
 

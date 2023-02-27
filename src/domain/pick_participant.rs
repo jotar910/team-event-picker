@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use rand::Rng;
 
-use crate::repository::event::{FindError, Repository, UpdateError};
+use crate::repository::errors::{FindError, UpdateError};
+use crate::repository::event::Repository;
 
 use super::entities::{EventPick, User};
 
@@ -43,12 +44,15 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
                 FindError::Unknown => Error::Unknown,
             };
         })?;
-    let event = repo.find_event(req.event, channel.id).await.map_err(|error| {
-        return match error {
-            FindError::NotFound => Error::NotFound,
-            FindError::Unknown => Error::Unknown,
-        };
-    })?;
+    let event = repo
+        .find_event(req.event, channel.id)
+        .await
+        .map_err(|error| {
+            return match error {
+                FindError::NotFound => Error::NotFound,
+                FindError::Unknown => Error::Unknown,
+            };
+        })?;
 
     if event.participants.len() == 0 {
         return Err(Error::Empty);

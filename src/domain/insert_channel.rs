@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use crate::repository::event::{FindError, InsertError, Repository};
+use crate::repository::errors::{FindError, InsertError};
+use crate::repository::event::Repository;
 
 use crate::domain::entities::Channel;
 

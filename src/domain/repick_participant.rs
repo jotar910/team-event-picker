@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use crate::domain::pick_participant;
-use crate::repository::event::{FindError, Repository, UpdateError};
+use crate::repository::errors::{FindError, UpdateError};
+use crate::repository::event::Repository;
 
 pub struct Request {
     pub event: u32,
@@ -98,7 +99,14 @@ mod tests {
 
         // Testing pick here ---
 
-        let result = execute(repo.clone(), Request { event: 0, channel: String::from("Channel") }).await;
+        let result = execute(
+            repo.clone(),
+            Request {
+                event: 0,
+                channel: String::from("Channel"),
+            },
+        )
+        .await;
 
         if let Err(..) = result {
             unreachable!()
@@ -109,7 +117,15 @@ mod tests {
             Err(..) => unreachable!("event must exist"),
         };
 
-        if let Err(..) = execute(repo.clone(), Request { event: 0, channel: String::from("Channel") }).await {
+        if let Err(..) = execute(
+            repo.clone(),
+            Request {
+                event: 0,
+                channel: String::from("Channel"),
+            },
+        )
+        .await
+        {
             unreachable!()
         }
 

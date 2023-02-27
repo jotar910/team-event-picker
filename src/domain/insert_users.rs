@@ -2,7 +2,8 @@ use std::{collections::HashMap, sync::Arc};
 
 use itertools::Itertools;
 
-use crate::repository::event::{FindAllError, InsertError, Repository};
+use crate::repository::errors::{FindAllError, InsertError};
+use crate::repository::event::Repository;
 
 use crate::domain::entities::User;
 

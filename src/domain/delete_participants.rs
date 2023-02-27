@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use serde::Serialize;
 
-use crate::repository::event::{FindAllError, FindError, Repository, UpdateError};
+use crate::repository::errors::{FindAllError, FindError, UpdateError};
+use crate::repository::event::Repository;
 
 use super::helpers::pick_update::PickUpdateHelper;
 
@@ -69,7 +70,10 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
             UpdateError::NotFound => Err(Error::NotFound),
             UpdateError::Conflict | UpdateError::Unknown => Err(Error::Unknown),
         },
-        Ok(..) => Ok(Response { id: event_id, channel: channel.name }),
+        Ok(..) => Ok(Response {
+            id: event_id,
+            channel: channel.name,
+        }),
     }
 }
 
@@ -91,7 +95,7 @@ mod tests {
         let req = Request {
             event: 0,
             participants: mocks::mock_users_names(),
-            channel: String::from("Channel")
+            channel: String::from("Channel"),
         };
 
         let result = execute(repo.clone(), req).await;

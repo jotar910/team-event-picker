@@ -1,95 +1,49 @@
 use std::sync::Arc;
 
-use chrono::prelude::Utc;
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
-
-use axum::{extract::State, routing, Json, Router, Server};
-
-use serde::{self, Deserialize, Serialize};
-
-use hyper::{HeaderMap, Result};
-
-use log::{debug, info};
+use axum::{extract::State, Json};
+use hyper::HeaderMap;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{
     domain::{
         create_event, delete_event, delete_participants, find_all_channels, find_all_events,
         find_event, pick_participant, repick_participant, update_event, update_participants,
     },
-    repository::event::{MongoDbRepository, Repository},
+    repository::event::Repository,
 };
 
-use super::config::Config;
-
-pub struct AppState {
-    secret: String,
-    repo: Arc<dyn Repository>,
-}
-
-pub async fn serve(config: Config) -> Result<()> {
-    let app = Router::new().route("/api", routing::post(handle_command));
-
-    info!(
-        "Connecting to database {}/{}",
-        config.database_url, config.database_name
-    );
-
-    let repo = Arc::new(
-        MongoDbRepository::new(&config.database_url, &config.database_name, 50)
-            .await
-            .expect("could not connect to database"),
-    );
-
-    info!("Listening on port {}", config.port);
-
-    Server::bind(&format!("0.0.0.0:{}", config.port).parse().unwrap())
-        .serve(
-            app.with_state(Arc::new(AppState {
-                secret: config.signature,
-                repo: repo.clone(),
-            }))
-            .into_make_service(),
-        )
-        .await
-}
+use super::AppState;
 
 /// Slack command
-/// Examples: token=<token>&team_id=<team_id>&team_domain=<team_group>&channel_id=C04QLHHR4Q0&channel_name=testing-slack-apps&user_id=U04PGARU4K1&user_name=<user_name>&command=%2Fpicker&text=pick&api_app_id=A04PZBPAXKN&is_enterprise_install=false&response_url=<response_url>&trigger_id=<trigger_id>
 #[derive(Deserialize, Debug)]
 pub struct CommandRequest {
-    pub token: String,
-    pub team_id: String,
-    pub team_domain: String,
-    pub channel_id: String,
     pub channel_name: String,
-    pub user_id: String,
-    pub user_name: String,
-    pub command: String,
     pub text: String,
-    pub api_app_id: String,
-    pub is_enterprise_install: String,
-    pub response_url: String,
-    pub trigger_id: String,
 }
 
 #[derive(Serialize, Debug)]
 pub struct CommandResponse {
+    // #[serde(rename = "type")]
     pub response_type: String,
     pub text: String,
 }
 
-// basic handler that responds with a string
-pub async fn handle_command(
+pub async fn execute(
     headers: HeaderMap,
     State(state): State<Arc<AppState>>,
     body: String,
-) -> Json<CommandResponse> {
-    if !verify_signature(headers, body.clone(), &state.secret) {
-        return Json(CommandResponse {
-            response_type: "in_channel".to_string(),
-            text: "Failed to authenticate".to_string(),
-        });
+) -> Json<Value> {
+    log::trace!("received command: {}", body);
+
+    if !super::verify_signature(headers, body.clone(), &state.secret) {
+        return Json(
+            serde_json::to_value(CommandResponse {
+                response_type: "in_channel".to_string(),
+                text: "Failed to authenticate".to_string(),
+            })
+            .unwrap(),
+        );
     }
 
     let payload = serde_urlencoded::from_str::<CommandRequest>(&body).unwrap();
@@ -97,6 +51,7 @@ pub async fn handle_command(
     let space_idx = args.find(' ').unwrap_or(args.len());
 
     let result = match &args[..space_idx] {
+        "test" => return Json(serde_json::from_str(&handle_test()).unwrap()),
         "add" => {
             handle_add(
                 state.repo.clone(),
@@ -156,61 +111,18 @@ pub async fn handle_command(
         }
         _ => USAGE_STR.to_string(),
     };
-    Json(CommandResponse {
-        response_type: "in_channel".to_string(),
-        text: result,
-    })
+
+    Json(
+        serde_json::to_value(&CommandResponse {
+            response_type: "in_channel".to_string(),
+            text: result,
+        })
+        .unwrap(),
+    )
 }
 
-fn calculate_signature(base_str: &str, secret: &str) -> String {
-    let mut mac =
-        Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC can take key of any size");
-    mac.update(base_str.as_bytes());
-    let result = mac.finalize().into_bytes();
-    format!("v0={}", hex::encode(result))
-}
-
-fn verify_signature(headers: HeaderMap, body: String, secret: &str) -> bool {
-    if !headers.contains_key("x-slack-request-timestamp")
-        || !headers.contains_key("x-slack-signature")
-    {
-        debug!("unable to find authentication headers");
-        return false;
-    }
-
-    let timestamp: i64 = headers
-        .get("x-slack-request-timestamp")
-        .unwrap()
-        .to_str()
-        .unwrap_or("")
-        .parse()
-        .unwrap_or(0);
-
-    // verify that the timestamp does not differ from local time by more than five minutes
-    if (Utc::now().timestamp() - timestamp).abs() > 300 {
-        debug!("request is too old");
-        return false;
-    }
-
-    let base_str = format!("v0:{}:{}", timestamp, body);
-
-    let expected_signature = calculate_signature(&base_str, secret);
-
-    let received_signature: String = headers
-        .get("x-slack-signature")
-        .unwrap()
-        .to_str()
-        .unwrap_or("")
-        .to_string();
-
-    // match the two signatures
-    if expected_signature != received_signature {
-        debug!("webhook signature mismatch");
-        return false;
-    }
-
-    debug!("webhook signature verified");
-    true
+fn handle_test() -> String {
+    return std::fs::read_to_string("src/assets/add_event_form.json").expect("Could not read add_event_form.json file");
 }
 
 async fn handle_pick(repo: Arc<dyn Repository>, channel_name: &str, args: &str) -> String {
