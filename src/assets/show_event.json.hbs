@@ -1,0 +1,115 @@
+{
+    "blocks": [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": "Details for \"{{name}}\"!  📅"
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": "*Name*"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*Participants*"
+                },
+                {
+                    "type": "plain_text",
+                    "text": "{{name}}"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "{{#each participants}} <@{{this}}> {{/each}}"
+                }
+            ]
+        },
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": "*Date & Time*"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*Frequency*"
+                },
+                {
+                    "type": "plain_text",
+                    "text": "{{date}}"
+                },
+                {
+                    "type": "plain_text",
+                    "text": "{{repeat}}"
+                }
+            ]
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "actions",
+            "block_id": "show_event_actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Pick"
+                    },
+                    "style": "primary",
+                    "value": "{{id}}",
+                    "action_id": "pick"
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Edit"
+                    },
+                    "value": "{{id}}",
+                    "action_id": "edit_event"
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Delete"
+                    },
+                    "value": "{{id}}",
+                    "action_id": "delete_event",
+                    "confirm": {
+						"title": {
+							"type": "plain_text",
+							"text": "Are you sure?"
+						},
+						"confirm": {
+							"type": "plain_text",
+							"text": "Do it!"
+						},
+						"deny": {
+							"type": "plain_text",
+							"text": "Stop, I've changed my mind!"
+						}
+					}
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Close"
+                    },
+                    "action_id": "close"
+                }
+            ]
+        }
+    ]
+}

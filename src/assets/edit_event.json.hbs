@@ -1,0 +1,166 @@
+{
+    "type": "modal",
+    "callback_id": "modal-identifier",
+    "title": {
+        "type": "plain_text",
+        "text": "Modal Title"
+    },
+    "submit": {
+        "type": "plain_text",
+        "text": "Add event"
+    },
+    "blocks": [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": "Editing event \"{{name}}\"  📅"
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "input",
+            "label": {
+                "type": "plain_text",
+                "text": "Event's name"
+            },
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "name_input",
+                "placeholder": {
+                    "type": "plain_text",
+                    "text": "Enter a name for your event"
+                },
+                "initial_value": "{{name}}"
+            }
+        },
+        {
+            "type": "input",
+            "label": {
+                "type": "plain_text",
+                "text": "Pick the date & time"
+            },
+            "element": {
+                "type": "datetimepicker",
+                "action_id": "date_input",
+                "initial_date_time": {{date}}
+            }
+        },
+        {
+            "type": "input",
+            "label": {
+                "type": "plain_text",
+                "text": "What is your event's frequency?"
+            },
+            "element": {
+                "type": "radio_buttons",
+                "action_id": "repeat_input",
+                "initial_option": {
+                    "value": "{{repeat}}",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "{{repeat_label}}"
+                    }
+                },
+                "options": [
+                    {
+                        "value": "none",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "None"
+                        }
+                    },
+                    {
+                        "value": "daily",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Daily"
+                        }
+                    },
+                    {
+                        "value": "weekly",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Weekly"
+                        }
+                    },
+                    {
+                        "value": "weekly_two",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Bi-weekly"
+                        }
+                    },
+                    {
+                        "value": "monthly",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Monthly"
+                        }
+                    },
+                    {
+                        "value": "monthly_two",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Bi-monthly"
+                        }
+                    },
+                    {
+                        "value": "yearly",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Yearly"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "Pick the participants"
+            },
+            "accessory": {
+                "action_id": "participants_input",
+                "type": "multi_users_select",
+                "placeholder": {
+                    "type": "plain_text",
+                    "text": "Select users"
+                },
+                "initial_users": [
+                    {{#each participants}}"{{this}}"{{#unless @last}},{{/unless}}{{/each}}
+                ]
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "actions",
+            "block_id": "edit_event_actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Save"
+                    },
+                    "style": "primary",
+                    "value": "ok",
+                    "action_id": "{{id}}"
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Cancel"
+                    },
+                    "value": "cancel"
+                }
+            ]
+        }
+    ]
+}

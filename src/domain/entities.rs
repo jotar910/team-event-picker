@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use serde::{Deserialize, Serialize};
 
 pub trait HasId {
@@ -71,8 +73,23 @@ pub enum RepeatPeriod {
     None,
     Daily,
     Weekly(i32),
-    Monthly,
+    Monthly(i32),
     Yearly,
+}
+
+impl RepeatPeriod {
+    pub fn label(&self) -> String {
+        match self {
+            RepeatPeriod::Daily => "Daily",
+            RepeatPeriod::Weekly(1) => "Weekly",
+            RepeatPeriod::Weekly(2) => "Bi-weekly",
+            RepeatPeriod::Monthly(1) => "Monthly",
+            RepeatPeriod::Monthly(2) => "Bi-monthly",
+            RepeatPeriod::Yearly => "Yearly",
+            _ => "None",
+        }
+        .to_string()
+    }
 }
 
 impl TryFrom<String> for RepeatPeriod {
@@ -84,9 +101,33 @@ impl TryFrom<String> for RepeatPeriod {
             "daily" => Ok(RepeatPeriod::Daily),
             "weekly" => Ok(RepeatPeriod::Weekly(1)),
             "weekly_two" => Ok(RepeatPeriod::Weekly(2)),
-            "monthly" => Ok(RepeatPeriod::Monthly),
+            "monthly" => Ok(RepeatPeriod::Monthly(1)),
+            "monthly_two" => Ok(RepeatPeriod::Monthly(2)),
             "yearly" => Ok(RepeatPeriod::Yearly),
             _ => Err(()),
         }
+    }
+}
+
+impl TryFrom<RepeatPeriod> for String {
+    type Error = ();
+
+    fn try_from(value: RepeatPeriod) -> Result<Self, Self::Error> {
+        Ok(match value {
+            RepeatPeriod::None => "none",
+            RepeatPeriod::Daily => "daily",
+            RepeatPeriod::Weekly(1) => "weekly",
+            RepeatPeriod::Weekly(2) => "weekly_two",
+            RepeatPeriod::Monthly(1) => "monthly",
+            RepeatPeriod::Monthly(2) => "monthly_two",
+            RepeatPeriod::Yearly => "yearly",
+            _ => return Err(()),
+        }.to_string())
+    }
+}
+
+impl Display for RepeatPeriod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.label())
     }
 }

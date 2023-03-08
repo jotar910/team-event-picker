@@ -9,7 +9,7 @@ use crate::repository::event::Repository;
 use crate::domain::entities::{Event, RepeatPeriod};
 use crate::domain::{insert_channel, insert_users};
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct Request {
     #[serde(deserialize_with = "string_trim")]
     pub name: String,

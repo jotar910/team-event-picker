@@ -1,0 +1,100 @@
+{
+    "blocks": [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": "Checkout your events!  🎭"
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "text": {
+                "text": "Here, you can view all of your events with ease. 🚀",
+                "type": "mrkdwn"
+            }
+        },
+        {{#each events}}
+        {
+            "type": "section",
+            "text": {
+                "text": "[{{this.id}}]: *{{this.name}}*",
+                "type": "mrkdwn"
+            },
+            "fields": [
+                {
+                    "type": "plain_text",
+                    "text": "{{date}}"
+                },
+                {
+                    "type": "plain_text",
+                    "text": "{{repeat}}"
+                }
+            ],
+            "accessory": {
+                "type": "overflow",
+                "options": [
+                    {
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Pick randomly"
+                        },
+                        "value": "pick"
+                    },
+                    {
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Show details"
+                        },
+                        "value": "show"
+                    },
+                    {
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Edit event"
+                        },
+                        "value": "edit"
+                    },
+                    {
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Delete event"
+                        },
+                        "value": "delete"
+                    }
+                ],
+                "action_id": "list_event_actions"
+            },
+            "block_id": "{{this.id}}"
+        },
+        {{/each}}
+        {
+            "type": "divider"
+        },
+        {
+            "type": "actions",
+            "block_id": "list_events_actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Create a new event"
+                    },
+                    "value": "add_event"
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Close"
+                    },
+                    "value": "close"
+                }
+            ]
+        }
+    ]
+}

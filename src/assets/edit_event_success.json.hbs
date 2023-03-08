@@ -1,0 +1,87 @@
+{
+    "blocks": [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": "Event updated with success!  🎉"
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "text": {
+                "text": "You can continue using it to randomly *pick* members of your team 🤩",
+                "type": "mrkdwn"
+            },
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": "*Name*"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*Participants*"
+                },
+                {
+                    "type": "plain_text",
+                    "text": "[{{id}}] {{name}}"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "{{#each participants}} <@{{this}}> {{/each}}"
+                }
+            ]
+        },
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": "*Date & Time*"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*Frequency*"
+                },
+                {
+                    "type": "plain_text",
+                    "text": "{{date}}"
+                },
+                {
+                    "type": "plain_text",
+                    "text": "{{repeat}}"
+                }
+            ]
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "actions",
+            "block_id": "edit_event_success_action",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Pick"
+                    },
+                    "style": "primary",
+                    "value": "{{id}}",
+                    "action_id": "pick"
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Close"
+                    },
+                    "action_id": "close"
+                }
+            ]
+        }
+    ]
+}

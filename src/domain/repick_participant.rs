@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::domain::entities::User;
 use crate::domain::pick_participant;
 use crate::repository::errors::{FindError, UpdateError};
 use crate::repository::event::Repository;
@@ -27,6 +28,15 @@ pub struct Response {
 impl From<pick_participant::Response> for Response {
     fn from(value: pick_participant::Response) -> Self {
         Self {
+            id: value.id,
+            name: value.name,
+        }
+    }
+}
+
+impl From<Response> for User {
+    fn from(value: Response) -> User {
+        User {
             id: value.id,
             name: value.name,
         }

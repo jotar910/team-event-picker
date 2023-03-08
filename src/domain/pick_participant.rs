@@ -27,6 +27,15 @@ impl From<User> for Response {
     }
 }
 
+impl From<Response> for User {
+    fn from(value: Response) -> Self {
+        Self {
+            id: value.id,
+            name: value.name,
+        }
+    }
+}
+
 #[derive(PartialEq, Debug)]
 pub enum Error {
     Empty,

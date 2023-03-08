@@ -1,0 +1,57 @@
+{
+    "type": "modal",
+    "callback_id": "modal-identifier",
+    "title": {
+        "type": "plain_text",
+        "text": "Modal Title"
+    },
+    "submit": {
+        "type": "plain_text",
+        "text": "Add event"
+    },
+    "blocks": [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": "Are you sure?  ❌"
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "text": {
+                "text": "Are you sure you want to delete the event *{{name}}*?\nThis action cannot be undone.",
+                "type": "mrkdwn"
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "actions",
+            "block_id": "delete_event_actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Do it!"
+                    },
+                    "style": "primary",
+                    "value": "{{id}}"
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Stop, I've changed my mind!"
+                    },
+                    "value": "cancel"
+                }
+            ]
+        }
+    ]
+}

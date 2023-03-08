@@ -8,7 +8,8 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread", "sync"] }
 axum = { version = "0.6.4", features = ["tower-log"] }
-hyper = "0.14.23"
+hyper = { version = "0.14", features = ["full"] }
+hyper-tls = "0.5.0"
 
 # Axum builds on the types in Tower
 tower = "0.4.11"
@@ -20,6 +21,7 @@ serde_json = "1.0.93"
 serde_trim = "0.4.0"
 serde_urlencoded = "0.7.1"
 bson = "2.5.0"
+handlebars = "4.3.6"
 
 # Database dependencies
 mongodb = "2.3.1"

@@ -1,0 +1,72 @@
+{
+    "blocks": [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": "Edit event  🔎"
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {{#if events.0}}
+        {
+			"type": "section",
+            "text": {
+                "text": "Select the event you want to edit:",
+                "type": "mrkdwn"
+            },
+			"accessory": {
+				"type": "static_select",
+				"action_id": "select_event",
+				"options": [
+                    {{#each events}}
+					{
+						"value": "{{this.id}}",
+						"text": {
+							"type": "plain_text",
+							"text": "{{this.text}}"
+						}
+					}{{#unless @last}},{{/unless}}
+                    {{/each}}
+				]
+			}
+		},
+        {{else}}
+        {
+			"type": "section",
+            "text": {
+                "text": "No events found! 🤷",
+                "type": "mrkdwn"
+            }
+		},
+        {{/if}}
+        {
+            "type": "divider"
+        },
+        {
+            "type": "actions",
+            "block_id": "select_event_edit_actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Next"
+                    },
+                    "style": "primary",
+                    "value": "ok"
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Cancel"
+                    },
+                    "value": "cancel"
+                }
+            ]
+        }
+    ]
+}

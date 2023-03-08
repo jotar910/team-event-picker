@@ -6,10 +6,12 @@ use axum::{Router, Server};
 use hyper::Result;
 
 pub async fn serve(config: Config) -> Result<()> {
-    let app = Router::new().route(
-        "/api/commands",
-        axum::routing::post(super::commands::execute),
-    );
+    let app = Router::new()
+        .route(
+            "/api/commands",
+            axum::routing::post(super::commands::execute),
+        )
+        .route("/api/actions", axum::routing::post(super::actions::execute));
 
     log::info!(
         "Connecting to database {}/{}",

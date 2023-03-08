@@ -386,12 +386,12 @@ impl MongoDbRepository {
         let mut client_options = mongodb::options::ClientOptions::parse(uri).await?;
         client_options.max_pool_size = Some(pool_size);
 
-        // Get a handle to the deployment.
         let client = mongodb::Client::with_options(client_options)?;
+        let db = client.database(database);
 
-        Ok(MongoDbRepository {
-            db: client.database(database),
-        })
+        db.run_command(doc! {"ping": 1}, None).await?;
+
+        Ok(MongoDbRepository { db })
     }
 
     async fn fill_with_id<'a, T>(
