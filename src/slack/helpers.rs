@@ -35,6 +35,29 @@ pub async fn send_post(url: &str, body: hyper::Body) -> Result<(), Box<dyn std::
     Ok(())
 }
 
+pub async fn send_authorized_post(url: &str, token: &str, body: hyper::Body) -> Result<(), Box<dyn std::error::Error>> {
+    let https = HttpsConnector::new();
+    let client = hyper::Client::builder().build(https);
+
+    let req = Request::builder()
+        .method(hyper::Method::POST)
+        .uri(url)
+        .header("Content-Type", "application/json")
+        .header("Authorization", String::from("Bearer ") + token)
+        .body(body)?;
+
+    log::trace!("sending authorized request to {}: {:?}", url, &req);
+
+    let res = client.request(req).await?;
+
+    let res_str = format!("{:?}", res);
+    let body = hyper::body::to_bytes(res).await;
+
+    log::trace!("authorized response received from request to {}: {}: {:?}", url, res_str, body);
+
+    Ok(())
+}
+
 pub fn verify_signature(headers: HeaderMap, body: String, secret: &str) -> bool {
     if !headers.contains_key("x-slack-request-timestamp")
         || !headers.contains_key("x-slack-signature")

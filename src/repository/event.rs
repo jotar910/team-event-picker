@@ -22,6 +22,11 @@ pub trait Repository: Send + Sync {
     async fn find_event(&self, id: u32, channel: u32) -> Result<Event, FindError>;
     async fn find_event_by_name(&self, name: String, channel: u32) -> Result<Event, FindError>;
     async fn find_all_events(&self, channel: u32) -> Result<Vec<Event>, FindAllError>;
+    async fn find_all_events_unprotected(&self) -> Result<Vec<Event>, FindAllError>;
+    async fn find_all_events_by_id_unprotected(
+        &self,
+        ids: Vec<u32>,
+    ) -> Result<Vec<Event>, FindAllError>;
     async fn insert_event(&self, event: Event) -> Result<Event, InsertError>;
     async fn update_event(&self, event: Event) -> Result<(), UpdateError>;
     async fn delete_event(&self, id: u32, channel: u32) -> Result<Event, DeleteError>;
@@ -29,6 +34,7 @@ pub trait Repository: Send + Sync {
     async fn find_channel(&self, id: u32) -> Result<Channel, FindError>;
     async fn find_channel_by_name(&self, name: String) -> Result<Channel, FindError>;
     async fn find_all_channels(&self) -> Result<Vec<Channel>, FindAllError>;
+    async fn find_all_channels_by_id(&self, ids: Vec<u32>) -> Result<Vec<Channel>, FindAllError>;
     async fn insert_channel(&self, channel: Channel) -> Result<Channel, InsertError>;
 
     async fn find_user(&self, id: u32) -> Result<User, FindError>;
@@ -100,6 +106,51 @@ impl Repository for InMemoryRepository {
             .filter(|event| event.channel == channel)
             .map(|event| event.clone())
             .collect())
+    }
+
+    async fn find_all_events_unprotected(&self) -> Result<Vec<Event>, FindAllError> {
+        let lock = match self.events.lock() {
+            Ok(lock) => lock,
+            _ => return Err(FindAllError::Unknown),
+        };
+
+        let events = lock
+            .iter()
+            .filter(|event| !event.deleted)
+            .map(|event| event.clone())
+            .collect();
+
+        Ok(events)
+    }
+
+    async fn find_all_events_by_id_unprotected(
+        &self,
+        ids: Vec<u32>,
+    ) -> Result<Vec<Event>, FindAllError> {
+        let lock = match self.events.lock() {
+            Ok(lock) => lock,
+            _ => return Err(FindAllError::Unknown),
+        };
+
+        let ids_set: HashSet<&u32> = ids.iter().collect();
+
+        let existing_events: Vec<Event> = lock
+            .iter()
+            .filter(|event| ids_set.contains(&event.id))
+            .map(|event| event.clone())
+            .collect();
+
+        let events = ids
+            .into_iter()
+            .filter_map(|key| {
+                existing_events
+                    .iter()
+                    .find(|event| event.id == key && !event.deleted)
+            })
+            .cloned()
+            .collect();
+
+        Ok(events)
     }
 
     async fn insert_event(&self, event: Event) -> Result<Event, InsertError> {
@@ -203,6 +254,29 @@ impl Repository for InMemoryRepository {
             _ => return Err(FindAllError::Unknown),
         };
         Ok(lock.iter().map(|channel| channel.clone()).collect())
+    }
+
+    async fn find_all_channels_by_id(&self, ids: Vec<u32>) -> Result<Vec<Channel>, FindAllError> {
+        let lock = match self.channels.lock() {
+            Ok(lock) => lock,
+            _ => return Err(FindAllError::Unknown),
+        };
+
+        let ids_set: HashSet<&u32> = ids.iter().collect();
+
+        let existing_channels: Vec<Channel> = lock
+            .iter()
+            .filter(|channel| ids_set.contains(&channel.id))
+            .map(|channel| channel.clone())
+            .collect();
+
+        let channels = ids
+            .into_iter()
+            .filter_map(|key| existing_channels.iter().find(|channel| channel.id == key))
+            .cloned()
+            .collect();
+
+        Ok(channels)
     }
 
     async fn insert_channel(&self, channel: Channel) -> Result<Channel, InsertError> {
@@ -512,6 +586,39 @@ impl Repository for MongoDbRepository {
         Ok(result)
     }
 
+    async fn find_all_events_unprotected(&self) -> Result<Vec<Event>, FindAllError> {
+        let filter = doc! { "deleted": false };
+        let mut cursor = self
+            .db
+            .collection::<Event>("events")
+            .find(filter, None)
+            .await?;
+
+        let mut result: Vec<Event> = vec![];
+        while cursor.advance().await? {
+            result.push(cursor.deserialize_current()?);
+        }
+        Ok(result)
+    }
+
+    async fn find_all_events_by_id_unprotected(
+        &self,
+        ids: Vec<u32>,
+    ) -> Result<Vec<Event>, FindAllError> {
+        let filter = doc! { "id": { "$in": ids.iter().map(|id| bson::Bson::from(*id)).collect::<Vec<bson::Bson>>() }, "deleted": false };
+        let mut cursor = self
+            .db
+            .collection::<Event>("events")
+            .find(filter, None)
+            .await?;
+
+        let mut result: Vec<Event> = vec![];
+        while cursor.advance().await? {
+            result.push(cursor.deserialize_current()?);
+        }
+        Ok(result)
+    }
+
     async fn insert_event(&self, event: Event) -> Result<Event, InsertError> {
         match self
             .find_event_by_name(event.name.clone(), event.channel.clone())
@@ -612,6 +719,28 @@ impl Repository for MongoDbRepository {
             .db
             .collection::<Channel>("channels")
             .find(None, None)
+            .await?;
+
+        let mut result: Vec<Channel> = vec![];
+        while cursor.advance().await? {
+            result.push(cursor.deserialize_current()?);
+        }
+        Ok(result)
+    }
+
+    async fn find_all_channels_by_id(&self, ids: Vec<u32>) -> Result<Vec<Channel>, FindAllError> {
+        let filter = doc! {
+            "id": {
+                "$in": ids
+                    .iter()
+                    .map(|id| bson::Bson::from(*id))
+                    .collect::<Vec<bson::Bson>>()
+            }
+        };
+        let mut cursor = self
+            .db
+            .collection::<Channel>("channels")
+            .find(filter, None)
             .await?;
 
         let mut result: Vec<Channel> = vec![];

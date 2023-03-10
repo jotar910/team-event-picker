@@ -1,11 +1,10 @@
 use std::sync::Arc;
 
-use rand::Rng;
-
 use crate::repository::errors::{FindError, UpdateError};
 use crate::repository::event::Repository;
 
-use super::entities::{EventPick, User};
+use super::entities::User;
+use super::helpers;
 
 pub struct Request {
     pub event: u32,
@@ -67,41 +66,15 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         return Err(Error::Empty);
     }
 
-    let pick = event.cur_pick;
-    let total_participants = event.participants.len();
+    let (pick, participant) = helpers::pick(&event);
 
-    let mut not_picked: Vec<usize> = vec![];
-
-    for i in 0..event.participants.len() {
-        if pick & (1 << i) == 0 {
-            not_picked.push(i);
-        }
-    }
-
-    let new_pick_idx: usize;
-    let new_pick: u32;
-
-    if not_picked.len() == 0 {
-        new_pick_idx = rand::thread_rng().gen_range(0..total_participants);
-        new_pick = 1 << new_pick_idx;
-    } else {
-        new_pick_idx = not_picked[rand::thread_rng().gen_range(0..not_picked.len())];
-        new_pick = pick | (1 << new_pick_idx);
-    }
-
-    repo.save_pick(EventPick {
-        event: event.id,
-        prev_pick: pick,
-        cur_pick: new_pick,
-    })
-    .await
-    .map_err(|error| match error {
+    repo.save_pick(pick).await.map_err(|error| match error {
         UpdateError::NotFound => Error::NotFound,
         UpdateError::Conflict | UpdateError::Unknown => Error::Unknown,
     })?;
 
     Ok(repo
-        .find_user(event.participants[new_pick_idx])
+        .find_user(participant)
         .await
         .map_err(|error| match error {
             FindError::NotFound => Error::NotFound,

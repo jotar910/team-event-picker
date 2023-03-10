@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread", "sync"] }
+tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread", "sync", "tracing"] }
 axum = { version = "0.6.4", features = ["tower-log"] }
 hyper = { version = "0.14", features = ["full"] }
 hyper-tls = "0.5.0"
@@ -38,3 +38,4 @@ chrono = "0.4.23"
 hmac = "0.12.1"
 sha2 = "0.10.6"
 hex = "0.4.3"
+# console-subscriber = "0.1.8"

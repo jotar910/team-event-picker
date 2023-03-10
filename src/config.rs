@@ -1,5 +1,5 @@
 /// The configuration parameters for the application.
-#[derive(clap::Parser)]
+#[derive(clap::Parser, Clone)]
 pub struct Config {
     /// The connection URL for the database this application should use.
     #[clap(long, env)]
@@ -12,6 +12,10 @@ pub struct Config {
     /// The signature of the slack workspace that uses this application.
     #[clap(long, env)]
     pub signature: String,
+
+    /// The token for the bot actions in the slack workspace that uses this application.
+    #[clap(long, env)]
+    pub bot_token: String,
 
     /// The PORT number for the server address.
     #[clap(long, env)]

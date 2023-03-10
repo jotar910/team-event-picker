@@ -6,16 +6,14 @@ use chrono::Utc;
 use hyper::HeaderMap;
 use serde::{Deserialize, Serialize};
 
-use crate::domain::delete_event;
-use crate::domain::pick_participant;
-use crate::domain::repick_participant;
+use crate::domain::{delete_event, pick_participant, repick_participant};
+use crate::scheduler::{entities::EventSchedule, Scheduler};
 use crate::{
     domain::{create_event, update_event},
     repository::event::Repository,
 };
 
-use super::templates;
-use super::AppState;
+use super::{sender, templates, AppState};
 
 #[derive(Serialize, Deserialize)]
 pub struct CommandActionBody {
@@ -35,7 +33,7 @@ pub struct CommandAction {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Channel {
-    name: String,
+    id: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -145,7 +143,7 @@ struct AddEventData {
 impl AddEventData {
     fn new(value: CommandAction) -> Self {
         Self {
-            channel: value.channel.name,
+            channel: value.channel.id,
             form: value.state.into(),
         }
     }
@@ -155,6 +153,14 @@ impl TryFrom<AddEventData> for create_event::Request {
     type Error = String;
 
     fn try_from(data: AddEventData) -> Result<Self, Self::Error> {
+        let participants = data
+            .form
+            .participants_input
+            .ok_or("no participants input")?
+            .selected_users;
+        if participants.len() == 0 {
+            return Err(String::from("participants is empty"));
+        }
         Ok(create_event::Request {
             channel: data.channel,
             name: data
@@ -183,11 +189,7 @@ impl TryFrom<AddEventData> for create_event::Request {
                 .ok_or("no repeat option")?
                 .value
                 .ok_or("no repeat value")?,
-            participants: data
-                .form
-                .participants_input
-                .ok_or("no participants input")?
-                .selected_users,
+            participants,
         })
     }
 }
@@ -268,7 +270,16 @@ pub async fn execute(
             continue;
         }
         let result = match action.block_id.as_deref().unwrap() {
-            "add_event_actions" => handle_add_event(state.repo.clone(), action, &payload).await,
+            "add_event_actions" => {
+                handle_add_event(
+                    state.repo.clone(),
+                    state.scheduler.clone(),
+                    state.token.clone(),
+                    action,
+                    &payload,
+                )
+                .await
+            }
             "edit_event_actions" => handle_edit_event(state.repo.clone(), action, &payload).await,
             "select_event_edit_actions" => {
                 handle_edit_select_event(state.repo.clone(), action, &payload).await
@@ -305,7 +316,7 @@ pub async fn execute(
                         handle_repick_event(
                             state.repo.clone(),
                             payload.response_url,
-                            payload.channel.name,
+                            payload.channel.id,
                             id,
                         )
                         .await
@@ -328,6 +339,8 @@ pub async fn execute(
 
 async fn handle_add_event(
     repo: Arc<dyn Repository>,
+    scheduler: Arc<Scheduler>,
+    token: String,
     action: &Action,
     command_action: &CommandAction,
 ) -> Result<(), hyper::StatusCode> {
@@ -353,8 +366,43 @@ async fn handle_add_event(
         _ => return Err(hyper::StatusCode::INTERNAL_SERVER_ERROR),
     };
 
-    let body = templates::add_event_success(repo, command_action.channel.name.clone(), response.id)
-        .await?;
+    let added_to_channel = match response.created_channel {
+        Some(channel) => {
+            match sender::join_channel(&token, &channel).await {
+                Ok(res) => {
+                    /* TODO: find why this gives error, and putting outside don't.
+                    if let Err(err) = task::spawn(async move {
+                        scheduler.insert(EventSchedule {
+                            id: response.id,
+                            date: response.date,
+                            repeat: response.repeat,
+                        }).await;
+                    }).await {
+                        log::error!("unable to insert event into scheduler: {}", err)
+                    } */
+                    Some(res)
+                }
+                Err(err) => {
+                    log::error!("unable to send slack error response: {}", err);
+                    None
+                }
+            }
+        }
+        None => Some(()),
+    };
+
+    if let Some(..) = added_to_channel {
+        scheduler
+            .insert(EventSchedule {
+                id: response.id,
+                date: response.date,
+                repeat: response.repeat,
+            })
+            .await;
+    }
+
+    let body =
+        templates::add_event_success(repo, command_action.channel.id.clone(), response.id).await?;
     super::send_post(&command_action.response_url, hyper::Body::from(body))
         .await
         .map_err(|err| {
@@ -402,8 +450,7 @@ async fn handle_edit_event(
     };
 
     let body =
-        templates::edit_event_success(repo, command_action.channel.name.clone(), response.id)
-            .await?;
+        templates::edit_event_success(repo, command_action.channel.id.clone(), response.id).await?;
     super::send_post(&command_action.response_url, hyper::Body::from(body))
         .await
         .map_err(|err| {
@@ -437,7 +484,7 @@ async fn handle_edit_select_event(
     handle_edit_selected_event(
         repo,
         command_action.response_url.clone(),
-        command_action.channel.name.clone(),
+        command_action.channel.id.clone(),
         event_id,
     )
     .await
@@ -465,7 +512,7 @@ async fn handle_delete_event(
 
     let request = delete_event::Request {
         id: event_id,
-        channel: command_action.channel.name.clone(),
+        channel: command_action.channel.id.clone(),
     };
     match delete_event::execute(repo.clone(), request).await {
         Ok(..) => (),
@@ -507,7 +554,7 @@ async fn handle_delete_select_event(
     handle_delete_selected_event(
         repo,
         command_action.response_url.clone(),
-        command_action.channel.name.clone(),
+        command_action.channel.id.clone(),
         event_id,
     )
     .await
@@ -536,7 +583,7 @@ async fn handle_pick_select_event(
     handle_pick_event(
         repo,
         command_action.response_url.clone(),
-        command_action.channel.name.clone(),
+        command_action.channel.id.clone(),
         event_id,
     )
     .await
@@ -562,7 +609,7 @@ async fn handle_list_item_event(
     event_id: u32,
 ) -> Result<(), hyper::StatusCode> {
     let response_url = command_action.response_url.clone();
-    let channel = command_action.channel.name.clone();
+    let channel = command_action.channel.id.clone();
     let selected_option = match action.selected_option.clone() {
         Some(option) => match option.value {
             Some(option) => option,
@@ -604,7 +651,7 @@ async fn handle_show_event(
     };
 
     let response_url = command_action.response_url.clone();
-    let channel = command_action.channel.name.clone();
+    let channel = command_action.channel.id.clone();
     match action_type.as_str() {
         "pick" => handle_pick_event(repo, response_url, channel, event_id).await,
         "edit_event" => handle_edit_selected_event(repo, response_url, channel, event_id).await,
@@ -636,7 +683,7 @@ async fn handle_show_select_event(
     handle_show_details_event(
         repo,
         command_action.response_url.clone(),
-        command_action.channel.name.clone(),
+        command_action.channel.id.clone(),
         event_id,
     )
     .await

@@ -221,6 +221,32 @@ pub fn repick(id: u32) -> Result<String, Error> {
     Ok(result)
 }
 
+pub fn pick_auto(
+    channel_name: String,
+    event_id: u32,
+    event_name: String,
+    participant_name: String,
+) -> Result<String, Error> {
+    let template = read_file(PICK_AUTO_HBS)?;
+    let result = super::render_template(
+        &template,
+        json!({
+            "channel": channel_name,
+            "participant": participant_name,
+            "event": {
+                "id": event_id,
+                "name": event_name
+            }
+        }),
+    )
+    .map_err(|err| {
+        log::error!("could not render template {}: {}", PICK_AUTO_HBS, err);
+        Error::RenderTemplate
+    })?;
+
+    Ok(result)
+}
+
 pub async fn pick_select_event(
     repo: Arc<dyn Repository>,
     channel: String,
@@ -333,6 +359,7 @@ const SHOW_EVENT_HBS: &str = "show_event.json.hbs";
 const SHOW_SELECT_EVENT_HBS: &str = "show_select_event.json.hbs";
 const PICK_HBS: &str = "pick.json.hbs";
 const PICK_ACTION_HBS: &str = "pick_action.json.hbs";
+const PICK_AUTO_HBS: &str = "pick_auto.json.hbs";
 const PICK_SELECT_EVENT_HBS: &str = "pick_select_event.json.hbs";
 const REPICK_HBS: &str = "repick.json.hbs";
 

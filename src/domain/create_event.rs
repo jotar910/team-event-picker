@@ -40,6 +40,9 @@ impl From<Request> for insert_channel::Request {
 #[derive(Serialize, Debug)]
 pub struct Response {
     pub id: u32,
+    pub date: String,
+    pub repeat: RepeatPeriod,
+    pub created_channel: Option<String>,
 }
 
 #[derive(PartialEq, Debug)]
@@ -66,9 +69,11 @@ impl From<insert_channel::Error> for Error {
 }
 
 pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
+    let mut created_channel = None;
     let channel = match repo.clone().find_channel_by_name(req.channel.clone()).await {
         Ok(channel) => channel,
         Err(FindError::NotFound) => {
+            created_channel = Some(req.channel.clone());
             insert_channel::execute(repo.clone(), req.clone().into())
                 .await?
                 .channel
@@ -110,7 +115,7 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
     event.channel = channel.id;
 
     match repo.insert_event(event).await {
-        Ok(Event { id, .. }) => Ok(Response { id }),
+        Ok(Event { id, date, repeat, .. }) => Ok(Response { id, date, repeat, created_channel }),
         Err(err) => Err(match err {
             InsertError::Conflict => Error::Conflict,
             InsertError::Unknown => Error::Unknown,
@@ -137,7 +142,7 @@ mod tests {
         let result = execute(repo, req).await;
 
         match result {
-            Ok(Response { id }) => assert_eq!(id, 0),
+            Ok(Response { id, .. }) => assert_eq!(id, 0),
             _ => unreachable!(),
         };
     }
@@ -167,7 +172,7 @@ mod tests {
         let result = execute(repo.clone(), mocks::mock_create_event_request()).await;
 
         match result {
-            Ok(Response { id }) => assert_eq!(id, 0),
+            Ok(Response { id, .. }) => assert_eq!(id, 0),
             _ => unreachable!(),
         };
 
@@ -191,7 +196,7 @@ mod tests {
         let result = execute(repo.clone(), req).await;
 
         match result {
-            Ok(Response { id }) => assert_eq!(id, 0),
+            Ok(Response { id, .. }) => assert_eq!(id, 0),
             _ => unreachable!(),
         };
 
@@ -208,7 +213,7 @@ mod tests {
         let result = execute(repo.clone(), req).await;
 
         match result {
-            Ok(Response { id }) => assert_eq!(id, 1),
+            Ok(Response { id, .. }) => assert_eq!(id, 1),
             _ => unreachable!(),
         };
 
@@ -229,7 +234,7 @@ mod tests {
         let result = execute(repo.clone(), mocks::mock_create_event_request()).await;
 
         match result {
-            Ok(Response { id }) => assert_eq!(id, 0),
+            Ok(Response { id, .. }) => assert_eq!(id, 0),
             _ => unreachable!(),
         }
 
