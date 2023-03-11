@@ -6,10 +6,12 @@ use chrono::Utc;
 use hyper::HeaderMap;
 use serde::{Deserialize, Serialize};
 
-use crate::domain::{delete_event, pick_participant, repick_participant};
 use crate::scheduler::{entities::EventSchedule, Scheduler};
 use crate::{
-    domain::{create_event, update_event},
+    domain::{
+        create_event, delete_event, entities::RepeatPeriod, find_event, pick_participant,
+        repick_participant, update_event,
+    },
     repository::event::Repository,
 };
 
@@ -195,16 +197,43 @@ impl TryFrom<AddEventData> for create_event::Request {
 }
 
 #[derive(Clone)]
+struct UpdateEventDetails {
+    id: u32,
+    name: String,
+    date: String,
+    repeat: RepeatPeriod,
+    participants: Vec<String>,
+}
+
+impl From<find_event::Response> for UpdateEventDetails {
+    fn from(value: find_event::Response) -> Self {
+        Self {
+            id: value.id,
+            name: value.name,
+            date: value.date,
+            repeat: value.repeat,
+            participants: value
+                .participants
+                .into_iter()
+                .map(|user| user.name)
+                .collect(),
+        }
+    }
+}
+
+#[derive(Clone)]
 struct UpdateEventData {
-    event_id: u32,
-    add_event: AddEventData,
+    event: UpdateEventDetails,
+    channel: String,
+    form: FormStateValue,
 }
 
 impl UpdateEventData {
-    fn new(event_id: u32, value: CommandAction) -> Self {
+    fn new(event: UpdateEventDetails, value: CommandAction) -> Self {
         Self {
-            event_id,
-            add_event: AddEventData::new(value),
+            event,
+            channel: value.channel.id,
+            form: value.state.into(),
         }
     }
 }
@@ -213,14 +242,36 @@ impl TryFrom<UpdateEventData> for update_event::Request {
     type Error = String;
 
     fn try_from(data: UpdateEventData) -> Result<Self, Self::Error> {
-        let edit_event: create_event::Request = data.add_event.try_into()?;
+        let participants = data
+            .form
+            .participants_input
+            .map_or(data.event.participants, |d| d.selected_users);
+        if participants.len() == 0 {
+            return Err(String::from("participants is empty"));
+        }
+
         Ok(update_event::Request {
-            id: data.event_id,
-            channel: edit_event.channel,
-            name: edit_event.name,
-            date: edit_event.date,
-            repeat: edit_event.repeat,
-            participants: edit_event.participants,
+            id: data.event.id,
+            channel: data.channel,
+            name: data
+                .form
+                .name_input
+                .and_then(|d| d.value)
+                .unwrap_or(data.event.name),
+            date: data
+                .form
+                .date_input
+                .and_then(|d| d.selected_date_time)
+                .map_or(data.event.date, |timestamp| {
+                    Utc.timestamp_opt(timestamp, 0).unwrap().to_string()
+                }),
+            repeat: data
+                .form
+                .repeat_input
+                .and_then(|d| d.selected_option)
+                .and_then(|d| d.value)
+                .unwrap_or(String::try_from(data.event.repeat).unwrap_or(String::from("none"))),
+            participants,
         })
     }
 }
@@ -280,12 +331,26 @@ pub async fn execute(
                 )
                 .await
             }
-            "edit_event_actions" => handle_edit_event(state.repo.clone(), action, &payload).await,
+            "edit_event_actions" => {
+                handle_edit_event(
+                    state.repo.clone(),
+                    state.scheduler.clone(),
+                    action,
+                    &payload,
+                )
+                .await
+            }
             "select_event_edit_actions" => {
                 handle_edit_select_event(state.repo.clone(), action, &payload).await
             }
             "delete_event_actions" => {
-                handle_delete_event(state.repo.clone(), action, &payload).await
+                handle_delete_event(
+                    state.repo.clone(),
+                    state.scheduler.clone(),
+                    action,
+                    &payload,
+                )
+                .await
             }
             "select_event_delete_actions" => {
                 handle_delete_select_event(state.repo.clone(), action, &payload).await
@@ -415,6 +480,7 @@ async fn handle_add_event(
 
 async fn handle_edit_event(
     repo: Arc<dyn Repository>,
+    scheduler: Arc<Scheduler>,
     action: &Action,
     command_action: &CommandAction,
 ) -> Result<(), hyper::StatusCode> {
@@ -432,9 +498,24 @@ async fn handle_edit_event(
         },
         None => return Err(hyper::StatusCode::BAD_REQUEST),
     };
+    let channel_id = command_action.channel.id.clone();
+
+    let request = find_event::Request {
+        id: event_id,
+        channel: channel_id,
+    };
+    let event: UpdateEventDetails = match find_event::execute(repo.clone(), request).await {
+        Ok(event) => event.into(),
+        Err(err) => {
+            return Err(match err {
+                find_event::Error::NotFound => hyper::StatusCode::NOT_FOUND,
+                find_event::Error::Unknown => hyper::StatusCode::INTERNAL_SERVER_ERROR,
+            })
+        }
+    };
 
     let request: update_event::Request =
-        match UpdateEventData::new(event_id, command_action.clone()).try_into() {
+        match UpdateEventData::new(event, command_action.clone()).try_into() {
             Ok(data) => data,
             Err(err) => {
                 log::trace!("error parsing data to update event request: {}", err);
@@ -448,6 +529,14 @@ async fn handle_edit_event(
         Err(update_event::Error::NotFound) => return Err(hyper::StatusCode::NOT_FOUND),
         _ => return Err(hyper::StatusCode::INTERNAL_SERVER_ERROR),
     };
+
+    scheduler
+        .insert(EventSchedule {
+            id: response.id,
+            date: response.date,
+            repeat: response.repeat,
+        })
+        .await;
 
     let body =
         templates::edit_event_success(repo, command_action.channel.id.clone(), response.id).await?;
@@ -492,6 +581,7 @@ async fn handle_edit_select_event(
 
 async fn handle_delete_event(
     repo: Arc<dyn Repository>,
+    scheduler: Arc<Scheduler>,
     action: &Action,
     command_action: &CommandAction,
 ) -> Result<(), hyper::StatusCode> {
@@ -502,7 +592,7 @@ async fn handle_delete_event(
         return handle_close(&command_action.response_url).await;
     }
 
-    let event_id: u32 = match action.action_id.clone() {
+    let event_id: u32 = match action.value.clone() {
         Some(id) => match id.parse() {
             Ok(id) => id,
             Err(..) => return Err(hyper::StatusCode::BAD_REQUEST),
@@ -519,6 +609,8 @@ async fn handle_delete_event(
         Err(delete_event::Error::NotFound) => return Err(hyper::StatusCode::NOT_FOUND),
         _ => return Err(hyper::StatusCode::INTERNAL_SERVER_ERROR),
     };
+
+    scheduler.remove(event_id).await;
 
     let body = templates::delete_event_success().await?;
     super::send_post(&command_action.response_url, hyper::Body::from(body))

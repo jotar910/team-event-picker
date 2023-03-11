@@ -78,13 +78,13 @@ impl DateRecords {
         log::debug!("added event to scheduler: {}", event.id);
     }
 
-    fn remove(&mut self, event: EventSchedule) {
-        if !self.saved_events_date.contains_key(&event.id) {
+    fn remove(&mut self, event_id: u32) {
+        if !self.saved_events_date.contains_key(&event_id) {
             log::trace!("trying to remove inexistent event from scheduler");
             return;
         }
-        self.clear_event(event.id);
-        log::debug!("removed event from scheduler: {}", event.id);
+        self.clear_event(event_id);
+        log::debug!("removed event from scheduler: {}", event_id);
     }
 
     fn clear_event(&mut self, event_id: u32) {
@@ -154,8 +154,8 @@ impl Scheduler {
         records.insert(event);
     }
 
-    pub async fn remove(&self, event: EventSchedule) {
+    pub async fn remove(&self, event_id: u32) {
         let mut records = self.mutex.lock().await;
-        records.remove(event);
+        records.remove(event_id);
     }
 }

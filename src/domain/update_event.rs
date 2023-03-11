@@ -41,6 +41,8 @@ impl From<Request> for insert_channel::Request {
 #[derive(Serialize, Debug)]
 pub struct Response {
     pub id: u32,
+    pub date: String,
+    pub repeat: RepeatPeriod,
 }
 
 #[derive(PartialEq, Debug)]
@@ -110,8 +112,12 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         .channel
         .id;
 
-    match repo.update_event(event).await {
-        Ok(..) => Ok(Response { id: req.id }),
+    match repo.update_event(event.clone()).await {
+        Ok(..) => Ok(Response {
+            id: event.id,
+            date: event.date,
+            repeat: event.repeat,
+        }),
         Err(err) => Err(match err {
             UpdateError::Conflict => Error::Conflict,
             UpdateError::NotFound => Error::NotFound,
@@ -139,7 +145,7 @@ mod tests {
         let result = execute(repo, req).await;
 
         match result {
-            Ok(Response { id }) => assert_eq!(id, 0),
+            Ok(Response { id, .. }) => assert_eq!(id, 0),
             _ => unreachable!(),
         };
     }
@@ -216,7 +222,7 @@ mod tests {
         let result = execute(repo.clone(), req).await;
 
         match result {
-            Ok(Response { id }) => assert_eq!(id, 0),
+            Ok(Response { id, .. }) => assert_eq!(id, 0),
             _ => unreachable!(),
         };
 
