@@ -70,6 +70,7 @@ impl Mul<u32> for Milliseconds {
 
 trait DateUtils: Send + Sync {
     fn now(&self) -> DateTime<Utc>;
+    fn clone(&self) -> Box<dyn DateUtils>;
 }
 
 struct ChronoUtils();
@@ -77,6 +78,10 @@ struct ChronoUtils();
 impl DateUtils for ChronoUtils {
     fn now(&self) -> DateTime<Utc> {
         Utc::now()
+    }
+
+    fn clone(&self) -> Box<dyn DateUtils> {
+        Box::new(Self {})
     }
 }
 
@@ -89,6 +94,14 @@ pub struct Date {
 impl Date {
     pub fn new(date: String, repeat: RepeatPeriod) -> Self {
         Self::new_date(date, repeat, Box::new(ChronoUtils()))
+    }
+
+    pub fn clone(&self) -> Self {
+        Self {
+            time: self.time,
+            frequency: self.frequency.clone(),
+            utils: self.utils.clone(),
+        }
     }
 
     fn new_date(date: String, frequency: RepeatPeriod, utils: Box<dyn DateUtils>) -> Self {
@@ -434,6 +447,12 @@ mod tests {
     impl DateUtils for MockDateUtils {
         fn now(&self) -> DateTime<Utc> {
             self.now_date
+        }
+
+        fn clone(&self) -> Box<dyn DateUtils> {
+            Box::new(Self {
+                now_date: self.now_date.clone(),
+            })
         }
     }
 }

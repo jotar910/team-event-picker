@@ -64,16 +64,7 @@ impl DateRecords {
         }
 
         let date = Date::new(event.date, event.repeat);
-        for minute in date.find_minutes().iter() {
-            match self.events_per_minute.get_mut(&minute) {
-                Some(events_per_minute) => {
-                    events_per_minute.push(event.id);
-                }
-                None => {
-                    self.events_per_minute.insert(*minute, vec![event.id]);
-                }
-            }
-        }
+        self.set_event_minutes(event.id, &date);
         self.saved_events_date.insert(event.id, date);
         log::debug!("added event to scheduler: {}", event.id);
     }
@@ -85,6 +76,31 @@ impl DateRecords {
         }
         self.clear_event(event_id);
         log::debug!("removed event from scheduler: {}", event_id);
+    }
+
+    fn reset_minutes(&mut self) {
+        self.events_per_minute = HashMap::new();
+
+        let mut saved_events_date: HashMap<u32, Date> = HashMap::new();
+        for (&event_id, date) in self.saved_events_date.iter() {
+            saved_events_date.insert(event_id, date.clone());
+        }
+        for (&event_id, date) in saved_events_date.iter() {
+            self.set_event_minutes(event_id, date);
+        }
+    }
+
+    fn set_event_minutes(&mut self, event_id: u32, date: &Date) {
+        for minute in date.find_minutes().iter() {
+            match self.events_per_minute.get_mut(&minute) {
+                Some(events_per_minute) => {
+                    events_per_minute.push(event_id);
+                }
+                None => {
+                    self.events_per_minute.insert(*minute, vec![event_id]);
+                }
+            }
+        }
     }
 
     fn clear_event(&mut self, event_id: u32) {
@@ -145,6 +161,13 @@ impl Scheduler {
                     yield_now().await;
                 }
                 helpers::sleep_until_next_minute();
+            }
+
+            {
+                log::trace!("finished year round: inserting a new round of events");
+                let mut records = self.mutex.lock().await;
+                records.reset_minutes();
+                yield_now().await;
             }
         }
     }
