@@ -1,10 +1,13 @@
+use crate::domain::timezone::Timezone;
+
 use super::{Channel, Event, RepeatPeriod, User};
 
 pub fn mock_event() -> Event {
     Event {
         id: 0,
         name: "Daily Meeting".to_string(),
-        date: "2001-01-01T01:00:00.000Z".to_string(),
+        timestamp: 1609459200,
+        timezone: Timezone::GMT,
         repeat: RepeatPeriod::Daily,
         participants: vec![0, 1],
         channel: 0,

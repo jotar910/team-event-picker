@@ -1,9 +1,11 @@
-use chrono::Utc;
+use chrono::{DateTime, FixedOffset, Local, NaiveDateTime, Timelike, Utc};
 use handlebars::Handlebars;
 use hmac::{Hmac, Mac};
 use hyper::{HeaderMap, Request};
 use hyper_tls::HttpsConnector;
 use sha2::Sha256;
+
+use crate::domain::timezone::Timezone;
 
 pub fn render_template(
     template: &str,
@@ -30,12 +32,21 @@ pub async fn send_post(url: &str, body: hyper::Body) -> Result<(), Box<dyn std::
     let res_str = format!("{:?}", res);
     let body = hyper::body::to_bytes(res).await;
 
-    log::trace!("response received from request to {}: {}: {:?}", url, res_str, body);
+    log::trace!(
+        "response received from request to {}: {}: {:?}",
+        url,
+        res_str,
+        body
+    );
 
     Ok(())
 }
 
-pub async fn send_authorized_post(url: &str, token: &str, body: hyper::Body) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn send_authorized_post(
+    url: &str,
+    token: &str,
+    body: hyper::Body,
+) -> Result<(), Box<dyn std::error::Error>> {
     let https = HttpsConnector::new();
     let client = hyper::Client::builder().build(https);
 
@@ -53,9 +64,25 @@ pub async fn send_authorized_post(url: &str, token: &str, body: hyper::Body) -> 
     let res_str = format!("{:?}", res);
     let body = hyper::body::to_bytes(res).await;
 
-    log::trace!("authorized response received from request to {}: {}: {:?}", url, res_str, body);
+    log::trace!(
+        "authorized response received from request to {}: {}: {:?}",
+        url,
+        res_str,
+        body
+    );
 
     Ok(())
+}
+
+pub fn fmt_timestamp(timestamp: i64, timezone: Timezone) -> String {
+    DateTime::<Local>::from_local(
+        NaiveDateTime::from_timestamp_opt(timestamp, 0)
+            .unwrap_or(NaiveDateTime::default())
+            .with_second(0)
+            .unwrap(),
+        FixedOffset::east_opt(Timezone::from(timezone).into()).unwrap(),
+    )
+    .to_string()
 }
 
 pub fn verify_signature(headers: HeaderMap, body: String, secret: &str) -> bool {

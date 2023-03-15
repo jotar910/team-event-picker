@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use chrono::{TimeZone, Utc};
 use hyper::StatusCode;
 use serde_json::{json, Value};
 
 use crate::{
-    domain::{entities::User, find_all_events, find_event},
+    domain::{entities::User, find_all_events, find_event, timezone::Timezone},
     repository::event::Repository,
+    slack::helpers,
 };
 
 pub async fn list_events(repo: Arc<dyn Repository>, channel: String) -> Result<String, Error> {
@@ -23,7 +23,7 @@ pub async fn list_events(repo: Arc<dyn Repository>, channel: String) -> Result<S
                 .map(|event|
                     json!({
                         "name": event.name,
-                        "date": event.date,
+                        "date": helpers::fmt_timestamp(event.timestamp, event.timezone),
                         "repeat": event.repeat.to_string(),
                         "id": event.id
                     })
@@ -40,7 +40,14 @@ pub async fn list_events(repo: Arc<dyn Repository>, channel: String) -> Result<S
 }
 
 pub fn add_event() -> Result<String, Error> {
-    read_file(ADD_EVENT_HBS)
+    let template = read_file(ADD_EVENT_HBS)?;
+    let result = super::render_template(&template, json!({ "timezones": Timezone::options() }))
+        .map_err(|err| {
+            log::error!("could not render template {}: {}", ADD_EVENT_HBS, err);
+            Error::ReadFile
+        })?;
+
+    Ok(result)
 }
 
 pub async fn add_event_success(
@@ -64,19 +71,12 @@ pub async fn edit_event(
         json!({
             "id": event.id,
             "name": event.name,
-            "date": Utc
-                .datetime_from_str(
-                    &event.date.trim_end_matches(" UTC"),
-                    "%Y-%m-%d %H:%M:%S%.3f",
-                )
-                .map_err(|err| {
-                    log::error!("could parse event date to timestamp: {}", err);
-                    Error::Query
-                })?
-                .timestamp(),
+            "date": event.timestamp,
             "repeat": event.repeat.clone().try_into().unwrap_or(String::from("")),
             "repeat_label": event.repeat.label(),
-            "participants": event.participants.into_iter().map(|user| user.name).collect::<Vec<String>>()
+            "participants": event.participants.into_iter().map(|user| user.name).collect::<Vec<String>>(),
+            "timezone": event.timezone.clone().option(),
+            "timezones": Timezone::options()
         }),
     ).map_err(|err| {
         log::error!("could not render template {}: {}", EDIT_EVENT_HBS, err);
@@ -151,7 +151,7 @@ pub async fn show_event(
         json!({
             "id": event.id,
             "name": event.name,
-            "date": event.date,
+            "date": helpers::fmt_timestamp(event.timestamp, event.timezone),
             "repeat": event.repeat.to_string(),
             "participants": event.participants.into_iter().map(|user| user.name).collect::<Vec<String>>()
         }),
@@ -178,7 +178,7 @@ pub async fn pick(
     replace: bool,
 ) -> Result<String, Error> {
     let event = find_event::execute(repo, find_event::Request { id, channel }).await?;
-    
+
     let filename: &str = if replace { PICK_HBS } else { PICK_ACTION_HBS };
     let template = read_file(filename)?;
     let result = super::render_template(
@@ -300,8 +300,8 @@ async fn event_action_success(
         json!({
             "id": event.id,
             "name": event.name,
-            "date": event.date,
-            "repeat": event.repeat.try_into().unwrap_or(String::from("")),
+            "date": helpers::fmt_timestamp(event.timestamp, event.timezone),
+            "repeat": event.repeat.to_string(),
             "participants": event.participants.into_iter().map(|user| user.name).collect::<Vec<String>>()
         }),
     )

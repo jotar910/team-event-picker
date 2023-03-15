@@ -5,7 +5,8 @@ pub fn mock_find_event_response() -> Response {
     Response {
         id: 0,
         name: event_creation.name,
-        date: event_creation.date,
+        timestamp: event_creation.timestamp,
+        timezone: event_creation.timezone,
         repeat: event_creation.repeat,
         participants: super::mock_participants(),
         channel: super::mock_channel(),

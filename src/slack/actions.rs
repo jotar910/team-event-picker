@@ -1,11 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
 use axum::extract::{Form, State};
-use chrono::TimeZone;
-use chrono::Utc;
 use hyper::HeaderMap;
 use serde::{Deserialize, Serialize};
 
+use crate::domain::timezone::Timezone;
 use crate::scheduler::{entities::EventSchedule, Scheduler};
 use crate::{
     domain::{
@@ -59,6 +58,7 @@ pub struct FormStateValue {
     date_input: Option<DateTimePicker>,
     repeat_input: Option<RadioButton>,
     participants_input: Option<MultiUsersSelect>,
+    timezone_input: Option<StaticSelect>,
     select_event: Option<StaticSelect>,
 }
 
@@ -69,6 +69,7 @@ impl FormStateValue {
             date_input: None,
             repeat_input: None,
             participants_input: None,
+            timezone_input: None,
             select_event: None,
         }
     }
@@ -79,6 +80,7 @@ impl FormStateValue {
             date_input: merge_option(self.date_input, v.date_input),
             repeat_input: merge_option(self.repeat_input, v.repeat_input),
             participants_input: merge_option(self.participants_input, v.participants_input),
+            timezone_input: merge_option(self.timezone_input, v.timezone_input),
             select_event: merge_option(self.select_event, v.select_event),
         }
     }
@@ -171,17 +173,20 @@ impl TryFrom<AddEventData> for create_event::Request {
                 .ok_or("no name input")?
                 .value
                 .ok_or("no name value")?,
-            date: Utc
-                .timestamp_opt(
-                    data.form
-                        .date_input
-                        .ok_or("no date input")?
-                        .selected_date_time
-                        .ok_or("no date value")?,
-                    0,
-                )
-                .unwrap()
-                .to_string(),
+            timestamp: data
+                .form
+                .date_input
+                .ok_or("no date input")?
+                .selected_date_time
+                .ok_or("no date value")?,
+            timezone: data
+                .form
+                .timezone_input
+                .ok_or("no timezone input")?
+                .selected_option
+                .ok_or("no timezone option")?
+                .value
+                .ok_or("no timezone selected value")?,
             repeat: data
                 .form
                 .repeat_input
@@ -200,7 +205,8 @@ impl TryFrom<AddEventData> for create_event::Request {
 struct UpdateEventDetails {
     id: u32,
     name: String,
-    date: String,
+    timestamp: i64,
+    timezone: Timezone,
     repeat: RepeatPeriod,
     participants: Vec<String>,
 }
@@ -210,7 +216,8 @@ impl From<find_event::Response> for UpdateEventDetails {
         Self {
             id: value.id,
             name: value.name,
-            date: value.date,
+            timestamp: value.timestamp,
+            timezone: value.timezone,
             repeat: value.repeat,
             participants: value
                 .participants
@@ -258,13 +265,17 @@ impl TryFrom<UpdateEventData> for update_event::Request {
                 .name_input
                 .and_then(|d| d.value)
                 .unwrap_or(data.event.name),
-            date: data
+            timestamp: data
                 .form
                 .date_input
                 .and_then(|d| d.selected_date_time)
-                .map_or(data.event.date, |timestamp| {
-                    Utc.timestamp_opt(timestamp, 0).unwrap().to_string()
-                }),
+                .unwrap_or(data.event.timestamp),
+            timezone: data
+                .form
+                .timezone_input
+                .and_then(|d| d.selected_option)
+                .and_then(|d| d.value)
+                .unwrap_or(data.event.timezone.into()),
             repeat: data
                 .form
                 .repeat_input
@@ -303,7 +314,7 @@ pub async fn execute(
     Form(payload): Form<CommandActionBody>,
 ) -> Result<(), hyper::StatusCode> {
     let body = serde_urlencoded::to_string(&payload).unwrap();
-    log::trace!("received action: {}", body);
+    log::trace!("received action: \n{:?} \n{}", headers, body);
 
     if !super::verify_signature(headers, body.clone(), &state.secret) {
         return Err(hyper::StatusCode::UNAUTHORIZED);
@@ -460,7 +471,8 @@ async fn handle_add_event(
         scheduler
             .insert(EventSchedule {
                 id: response.id,
-                date: response.date,
+                timestamp: response.timestamp,
+                timezone: response.timezone,
                 repeat: response.repeat,
             })
             .await;
@@ -533,7 +545,8 @@ async fn handle_edit_event(
     scheduler
         .insert(EventSchedule {
             id: response.id,
-            date: response.date,
+            timestamp: response.timestamp,
+            timezone: response.timezone,
             repeat: response.repeat,
         })
         .await;

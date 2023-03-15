@@ -7,14 +7,15 @@ use crate::repository::errors::{FindError, UpdateError};
 use crate::repository::event::Repository;
 
 use crate::domain::entities::{Event, RepeatPeriod};
-use crate::domain::{insert_channel, insert_users};
+use crate::domain::{insert_channel, insert_users, timezone::Timezone};
 
 #[derive(Deserialize, Clone)]
 pub struct Request {
     pub id: u32,
     #[serde(deserialize_with = "string_trim")]
     pub name: String,
-    pub date: String,
+    pub timestamp: i64,
+    pub timezone: String,
     pub repeat: String,
     #[serde(deserialize_with = "vec_string_trim")]
     pub participants: Vec<String>,
@@ -41,7 +42,8 @@ impl From<Request> for insert_channel::Request {
 #[derive(Serialize, Debug)]
 pub struct Response {
     pub id: u32,
-    pub date: String,
+    pub timestamp: i64,
+    pub timezone: Timezone,
     pub repeat: RepeatPeriod,
 }
 
@@ -93,7 +95,8 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
     let mut event = Event {
         id: existing_event.id,
         name: req.name.clone(),
-        date: req.date.clone(),
+        timestamp: req.timestamp,
+        timezone: Timezone::from(req.timezone.clone()),
         repeat: RepeatPeriod::try_from(req.repeat.clone()).map_err(|_| Error::BadRequest)?,
         participants: vec![],
         channel: existing_event.channel,
@@ -115,7 +118,8 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
     match repo.update_event(event.clone()).await {
         Ok(..) => Ok(Response {
             id: event.id,
-            date: event.date,
+            timestamp: event.timestamp,
+            timezone: event.timezone,
             repeat: event.repeat,
         }),
         Err(err) => Err(match err {

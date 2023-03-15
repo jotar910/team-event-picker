@@ -44,6 +44,40 @@
             "element": {
                 "type": "datetimepicker",
                 "action_id": "date_input"
+            },
+            "hint": {
+                "type": "plain_text",
+                "text": "Ignore any hint regarding timezone here.\nPlease select your timezone bellow!"
+            }
+        },
+        {
+            "type": "input",
+            "label": {
+                "type": "plain_text",
+                "text": " "
+            },
+            "element": {
+                "type": "static_select",
+                "initial_option": {
+                    "value": "{{timezones.0.value}}",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "{{timezones.0.label}}"
+                    }
+                },
+                "options": [
+                    {{#each timezones}}
+					{
+                        "value": "{{this.value}}",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "{{this.label}}"
+                        }
+                    }
+                    {{#unless @last}},{{/unless}}
+                    {{/each}}
+                ],
+                "action_id": "timezone_input"
             }
         },
         {

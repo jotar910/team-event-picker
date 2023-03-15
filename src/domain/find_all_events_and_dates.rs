@@ -7,10 +7,13 @@ use crate::domain::entities::RepeatPeriod;
 use crate::repository::errors::FindAllError;
 use crate::repository::event::Repository;
 
+use super::timezone::Timezone;
+
 #[derive(Serialize, Debug)]
 pub struct Response {
     pub id: u32,
-    pub date: String,
+    pub timestamp: i64,
+    pub timezone: Timezone,
     pub repeat: RepeatPeriod,
 }
 
@@ -34,7 +37,8 @@ pub async fn execute(repo: Arc<dyn Repository>) -> Result<ListResponse<Response>
             .into_iter()
             .map(|event| Response {
                 id: event.id,
-                date: event.date,
+                timestamp: event.timestamp,
+                timezone: event.timezone,
                 repeat: event.repeat,
             })
             .collect(),

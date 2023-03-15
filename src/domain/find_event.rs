@@ -6,6 +6,8 @@ use crate::domain::entities::{Channel, RepeatPeriod, User};
 use crate::repository::errors::{FindAllError, FindError};
 use crate::repository::event::Repository;
 
+use super::timezone::Timezone;
+
 #[derive(Debug, PartialEq)]
 pub enum Error {
     NotFound,
@@ -20,7 +22,8 @@ pub struct Request {
 pub struct Response {
     pub id: u32,
     pub name: String,
-    pub date: String,
+    pub timestamp: i64,
+    pub timezone: Timezone,
     pub repeat: RepeatPeriod,
     pub participants: Vec<User>,
     pub channel: Channel,
@@ -58,7 +61,8 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
     Ok(Response {
         id: event.id,
         name: event.name,
-        date: event.date,
+        timestamp: event.timestamp,
+        timezone: event.timezone,
         repeat: event.repeat,
         participants: participants.clone(),
         channel: repo

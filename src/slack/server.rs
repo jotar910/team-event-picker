@@ -78,7 +78,8 @@ pub async fn serve(config: Config) -> Result<()> {
                 scheduler
                     .insert(EventSchedule {
                         id: event.id,
-                        date: event.date,
+                        timestamp: event.timestamp,
+                        timezone: event.timezone,
                         repeat: event.repeat,
                     })
                     .await;

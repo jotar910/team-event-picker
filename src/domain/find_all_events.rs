@@ -7,6 +7,8 @@ use crate::domain::entities::RepeatPeriod;
 use crate::repository::errors::FindAllError;
 use crate::repository::event::Repository;
 
+use super::timezone::Timezone;
+
 pub struct Request {
     pub channel: String,
 }
@@ -15,7 +17,8 @@ pub struct Request {
 pub struct Response {
     pub id: u32,
     pub name: String,
-    pub date: String,
+    pub timestamp: i64,
+    pub timezone: Timezone,
     pub repeat: RepeatPeriod,
     pub participants: Vec<String>,
 }
@@ -53,7 +56,8 @@ pub async fn execute(
             let response = Response {
                 id: event.id,
                 name: event.name,
-                date: event.date,
+                timestamp: event.timestamp,
+                timezone: event.timezone,
                 repeat: event.repeat,
                 participants: participants.into_iter().map(|user| user.name).collect(),
             };

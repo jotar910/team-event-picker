@@ -2,6 +2,8 @@ use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
 
+use super::timezone::Timezone;
+
 pub trait HasId {
     fn set_id(&mut self, id: u32);
     fn get_id(&self) -> u32;
@@ -11,7 +13,8 @@ pub trait HasId {
 pub struct Event {
     pub id: u32,
     pub name: String,
-    pub date: String,
+    pub timestamp: i64,
+    pub timezone: Timezone,
     pub repeat: RepeatPeriod,
     pub participants: Vec<u32>,
     pub channel: u32,

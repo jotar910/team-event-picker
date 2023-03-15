@@ -63,7 +63,7 @@ impl DateRecords {
             self.clear_event(event.id);
         }
 
-        let date = Date::new(event.date, event.repeat);
+        let date = Date::new(event.timestamp, event.timezone, event.repeat);
         self.set_event_minutes(event.id, &date);
         self.saved_events_date.insert(event.id, date);
         log::debug!("added event to scheduler: {}", event.id);

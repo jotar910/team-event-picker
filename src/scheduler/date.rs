@@ -3,9 +3,11 @@ use std::{
     vec,
 };
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, TimeZone, Utc, Weekday};
+use chrono::{
+    DateTime, Datelike, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, Utc, Weekday,
+};
 
-use crate::domain::entities::RepeatPeriod;
+use crate::domain::{entities::RepeatPeriod, timezone::Timezone};
 
 use super::helpers;
 
@@ -92,8 +94,8 @@ pub struct Date {
 }
 
 impl Date {
-    pub fn new(date: String, repeat: RepeatPeriod) -> Self {
-        Self::new_date(date, repeat, Box::new(ChronoUtils()))
+    pub fn new(timestamp: i64, timezone: Timezone, repeat: RepeatPeriod) -> Self {
+        Self::new_date(timestamp, timezone, repeat, Box::new(ChronoUtils()))
     }
 
     pub fn clone(&self) -> Self {
@@ -104,19 +106,17 @@ impl Date {
         }
     }
 
-    fn new_date(date: String, frequency: RepeatPeriod, utils: Box<dyn DateUtils>) -> Self {
-        let time =
-            match Utc.datetime_from_str(&date.trim_end_matches(" UTC"), "%Y-%m-%d %H:%M:%S%.3f") {
-                Ok(time) => time,
-                Err(err) => {
-                    log::error!("could not parse date {}: {}", date, err);
-                    return Self {
-                        time: DateTime::default(),
-                        frequency: RepeatPeriod::None,
-                        utils,
-                    };
-                }
-            };
+    fn new_date(
+        timestamp: i64,
+        timezone: Timezone,
+        frequency: RepeatPeriod,
+        utils: Box<dyn DateUtils>,
+    ) -> Self {
+        let time = DateTime::<Local>::from_local(
+            NaiveDateTime::from_timestamp_opt(timestamp, 0).unwrap_or(NaiveDateTime::default()),
+            FixedOffset::east_opt(Timezone::from(timezone).into()).unwrap(),
+        )
+        .with_timezone(&Utc);
         Self {
             time,
             frequency,
@@ -256,10 +256,11 @@ mod tests {
 
     #[test]
     fn it_should_create_date_instance() {
-        let date = String::from("2001-01-01 01:01:00.000 UTC");
+        let date = 978310860; // String::from("2001-01-01 01:01:00.000 UTC")
+        let timezone = Timezone::UTC;
         let repeat = RepeatPeriod::Daily;
 
-        let result = Date::new(date, repeat);
+        let result = Date::new(date, timezone, repeat);
         assert_eq!(
             result.time.date_naive(),
             NaiveDate::from_ymd_opt(2001, 1, 1).unwrap()
@@ -273,40 +274,44 @@ mod tests {
 
     #[test]
     fn it_should_return_no_minutes_when_frequency_is_none_and_year_is_different() {
-        let date = String::from("2023-01-02 00:01:00.000 UTC");
+        let date = 1672617660; // String::from("2023-01-02 00:01:00.000 UTC")
+        let timezone = Timezone::UTC;
         let repeat = RepeatPeriod::None;
 
-        let result = Date::new_date(date, repeat, Box::new(MockDateUtils::from_ymd(2000, 1, 1)));
+        let result = Date::new_date(date, timezone, repeat, Box::new(MockDateUtils::from_ymd(2000, 1, 1)));
         let result = result.find_minutes();
         assert_eq!(result.len(), 0);
     }
 
     #[test]
     fn it_should_return_the_corresponding_minutes_when_frequency_is_none_and_year_is_same() {
-        let date = String::from("2023-01-02 00:01:00.000 UTC");
+        let date = 1672617660; // String::from("2023-01-02 00:01:00.000 UTC")
+        let timezone = Timezone::UTC;
         let repeat = RepeatPeriod::None;
 
-        let result = Date::new_date(date, repeat, Box::new(MockDateUtils::from_ymd(2023, 1, 1)));
+        let result = Date::new_date(date, timezone, repeat, Box::new(MockDateUtils::from_ymd(2023, 1, 1)));
         let result = result.find_minutes();
         assert_eq!(result, vec![MINUTES_IN_A_DAY + 1]);
     }
 
     #[test]
     fn it_should_return_the_corresponding_minutes_when_frequency_is_yearly() {
-        let date = String::from("2023-01-02 00:01:00.000 UTC");
+        let date = 1672617660; // String::from("2023-01-02 00:01:00.000 UTC")
+        let timezone = Timezone::UTC;
         let repeat = RepeatPeriod::Yearly;
 
-        let result = Date::new_date(date, repeat, Box::new(MockDateUtils::from_ymd(2023, 1, 1)));
+        let result = Date::new_date(date, timezone, repeat, Box::new(MockDateUtils::from_ymd(2023, 1, 1)));
         let result = result.find_minutes();
         assert_eq!(result, vec![MINUTES_IN_A_DAY + 1]);
     }
 
     #[test]
     fn it_should_return_all_the_minutes_for_daily_frequency_until_end_of_the_year() {
-        let date = String::from("2023-01-01 00:01:00.000 UTC");
+        let date = 1672531260; // String::from("2023-01-01 00:01:00.000 UTC");
+        let timezone = Timezone::UTC;
         let repeat = RepeatPeriod::Daily;
 
-        let result = Date::new(date, repeat);
+        let result = Date::new(date, timezone, repeat);
         let result = result.find_minutes();
         assert_eq!(result.len(), 260);
 
@@ -329,10 +334,11 @@ mod tests {
 
     #[test]
     fn it_should_return_all_the_minutes_for_weekly_frequency_until_end_of_the_year() {
-        let date = String::from("2023-01-02 00:01:00.000 UTC");
+        let date = 1672617660; // String::from("2023-01-02 00:01:00.000 UTC")
+        let timezone = Timezone::UTC;
         let repeat = RepeatPeriod::Weekly(1);
 
-        let result = Date::new(date, repeat);
+        let result = Date::new(date, timezone, repeat);
         let result = result.find_minutes();
         assert_eq!(result.len(), 52);
 
@@ -346,10 +352,11 @@ mod tests {
 
     #[test]
     fn it_should_return_all_the_minutes_for_biweekly_frequency_until_end_of_the_year() {
-        let date = String::from("2023-01-02 00:01:00.000 UTC");
+        let date = 1672617660; // String::from("2023-01-02 00:01:00.000 UTC")
+        let timezone = Timezone::UTC;
         let repeat = RepeatPeriod::Weekly(2);
 
-        let result = Date::new(date, repeat);
+        let result = Date::new(date, timezone, repeat);
         let result = result.find_minutes();
         assert_eq!(result.len(), 26);
 
@@ -363,10 +370,11 @@ mod tests {
 
     #[test]
     fn it_should_return_all_the_minutes_for_monthly_frequency_until_end_of_the_year() {
-        let date = String::from("2023-01-02 00:01:00.000 UTC");
+        let date = 1672617660; // String::from("2023-01-02 00:01:00.000 UTC")
+        let timezone = Timezone::UTC;
         let repeat = RepeatPeriod::Monthly(1);
 
-        let result = Date::new_date(date, repeat, Box::new(MockDateUtils::new()));
+        let result = Date::new_date(date, timezone, repeat, Box::new(MockDateUtils::new()));
         let result = result.find_minutes();
         assert_eq!(result.len(), 12);
 
@@ -384,10 +392,11 @@ mod tests {
     #[test]
     fn it_should_return_all_the_minutes_for_monthly_frequency_in_last_month_day_until_end_of_the_year(
     ) {
-        let date = String::from("2023-01-31 00:01:00.000 UTC");
+        let date = 1675123260; // String::from("2023-01-31 00:01:00.000 UTC");
+        let timezone = Timezone::UTC;
         let repeat = RepeatPeriod::Monthly(1);
 
-        let result = Date::new_date(date, repeat, Box::new(MockDateUtils::new()));
+        let result = Date::new_date(date, timezone, repeat, Box::new(MockDateUtils::new()));
         let result = result.find_minutes();
         assert_eq!(result.len(), 12);
 
@@ -404,10 +413,11 @@ mod tests {
 
     #[test]
     fn it_should_return_all_the_minutes_for_bimonthly_frequency_until_end_of_the_year() {
-        let date = String::from("2023-01-02 00:01:00.000 UTC");
+        let date = 1672617660; // String::from("2023-01-02 00:01:00.000 UTC")
+        let timezone = Timezone::UTC;
         let repeat = RepeatPeriod::Monthly(2);
 
-        let result = Date::new_date(date, repeat, Box::new(MockDateUtils::new()));
+        let result = Date::new_date(date, timezone, repeat, Box::new(MockDateUtils::new()));
         let result = result.find_minutes();
         assert_eq!(result.len(), 6);
 
