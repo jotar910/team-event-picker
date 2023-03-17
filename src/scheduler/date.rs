@@ -174,11 +174,10 @@ impl Date {
 
         let mut minutes = vec![];
         for i in 0..repetitions + 1 {
-            let millis = range_start + interval * i;
-            let date = NaiveDateTime::from_timestamp_millis(time.0 + millis.0).unwrap();
-            let weekday = date.weekday();
+            let millis = interval * i;
+            let weekday = NaiveDateTime::from_timestamp_millis(time.0 + millis.0).unwrap().weekday();
             if weekday != Weekday::Sat && weekday != Weekday::Sun {
-                minutes.push(Minutes::from(millis).0);
+                minutes.push(Minutes::from(range_start + millis).0);
             }
         }
         minutes
