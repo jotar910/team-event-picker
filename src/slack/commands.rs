@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{extract::State, Json};
 use hyper::HeaderMap;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 
 use crate::{
     domain::{pick_participant, repick_participant},
@@ -32,7 +32,7 @@ pub async fn execute(
     State(state): State<Arc<AppState>>,
     body: String,
 ) -> Result<Json<Value>, hyper::StatusCode> {
-    log::trace!("received command: {}", body);
+    log::trace!("received command: \n{:?} \n{}", headers, body);
 
     if !super::verify_signature(headers, body.clone(), &state.secret) {
         return Err(hyper::StatusCode::UNAUTHORIZED);
@@ -89,7 +89,7 @@ pub async fn execute(
         }
         "help" => handle_help(&args[space_idx..].trim()),
         _ => {
-            let err = to_response_error(UNKNOWN_COMMAND_STR)?;
+            let err = super::to_response_error(UNKNOWN_COMMAND_STR)?;
 
             super::send_post(&payload.response_url, hyper::Body::from(err))
                 .await
@@ -110,7 +110,7 @@ pub async fn execute(
                 err.as_str(),
                 err.canonical_reason().unwrap_or("Unknown")
             );
-            let err = to_response_error(&err)?;
+            let err = super::to_response_error(&err)?;
 
             super::send_post(&payload.response_url, hyper::Body::from(err))
                 .await
@@ -243,7 +243,6 @@ async fn handle_repick(
     channel: String,
     args: &str,
 ) -> Result<String, hyper::StatusCode> {
-
     let id: u32 = match args.parse() {
         Ok(id) => id,
         Err(..) => return Err(hyper::StatusCode::BAD_REQUEST),
@@ -282,7 +281,7 @@ async fn handle_repick(
 }
 
 fn handle_help(args: &str) -> Result<String, hyper::StatusCode> {
-    to_response(match &args.trim()[..] {
+    super::to_response(match &args.trim()[..] {
         "create" => USAGE_ADD_STR,
         "delete" => USAGE_DELETE_STR,
         "edit" => USAGE_EDIT_STR,
@@ -291,14 +290,6 @@ fn handle_help(args: &str) -> Result<String, hyper::StatusCode> {
         "show" => USAGE_SHOW_STR,
         _ => USAGE_STR,
     })
-}
-
-fn to_response(value: &str) -> Result<String, hyper::StatusCode> {
-    Ok(json!({ "text": value }).to_string())
-}
-
-fn to_response_error(value: &str) -> Result<String, hyper::StatusCode> {
-    Ok(json!({ "text": value, "response_type": "ephemeral" }).to_string())
 }
 
 const USAGE_ADD_STR: &'static str = r#"

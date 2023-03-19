@@ -316,6 +316,8 @@ pub async fn execute(
     let body = serde_urlencoded::to_string(&payload).unwrap();
     log::trace!("received action: \n{:?} \n{}", headers, body);
 
+    let token = super::find_token(&headers)?;
+
     if !super::verify_signature(headers, body.clone(), &state.secret) {
         return Err(hyper::StatusCode::UNAUTHORIZED);
     }
@@ -336,7 +338,7 @@ pub async fn execute(
                 handle_add_event(
                     state.repo.clone(),
                     state.scheduler.clone(),
-                    state.token.clone(),
+                    token,
                     action,
                     &payload,
                 )
@@ -699,7 +701,7 @@ async fn handle_list_event(
     command_action: &CommandAction,
 ) -> Result<(), hyper::StatusCode> {
     match action.value.clone() {
-        Some(value) if value == "cancel" => handle_close(&command_action.response_url).await,
+        Some(value) if value == "close" => handle_close(&command_action.response_url).await,
         Some(value) if value == "add_event" => {
             handle_create_event(&command_action.response_url).await
         }

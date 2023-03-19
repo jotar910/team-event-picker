@@ -3,12 +3,12 @@ use std::sync::Arc;
 use crate::{
     config::Config,
     domain::{find_all_events_and_dates, pick_auto_participants},
-    repository::event::MongoDbRepository,
+    repository,
     scheduler::{entities::EventSchedule, Scheduler},
     slack::sender,
 };
 
-use axum::{Router, Server};
+use axum::{Router, Server, middleware, Extension};
 use hyper::Result;
 use tokio::{join, sync::mpsc, task};
 
@@ -18,7 +18,9 @@ pub async fn serve(config: Config) -> Result<()> {
             "/api/commands",
             axum::routing::post(super::commands::execute),
         )
-        .route("/api/actions", axum::routing::post(super::actions::execute));
+        .route("/api/actions", axum::routing::post(super::actions::execute))
+        .route_layer(middleware::from_fn(super::auth_guard::guard))
+        .route("/api/oauth", axum::routing::get(super::oauth::execute));
 
     log::info!(
         "Connecting to database {}/{}",
@@ -27,9 +29,14 @@ pub async fn serve(config: Config) -> Result<()> {
     );
 
     let repo = Arc::new(
-        MongoDbRepository::new(&config.database_url, &config.database_name, 50)
+        repository::event::MongoDbRepository::new(&config.database_url, &config.database_name, 50)
             .await
             .expect("could not connect to database"),
+    );
+    let auth_repo = Arc::new(
+        repository::auth::MongoDbRepository::new(&config.database_url, "auth", 50)
+            .await
+            .expect("could not connect to auth database"),
     );
     let (tx, mut rx) = mpsc::channel::<Vec<pick_auto_participants::Pick>>(1);
     let scheduler = Arc::new(Scheduler::new(tx));
@@ -40,14 +47,22 @@ pub async fn serve(config: Config) -> Result<()> {
     let app_config = config.clone();
     let server_task = task::spawn(async move {
         log::info!("Listening on port {}", config.port);
+
+        let state = Arc::new(super::AppState {
+            secret: app_config.signature,
+            token: app_config.bot_token,
+            client_id: app_config.client_id,
+            client_secret: app_config.client_secret,
+            repo: app_repo,
+            auth_repo,
+            scheduler: app_scheduler,
+        });
+
         if let Err(err) = Server::bind(&format!("0.0.0.0:{}", app_config.port).parse().unwrap())
             .serve(
-                app.with_state(Arc::new(super::AppState {
-                    secret: app_config.signature,
-                    token: app_config.bot_token,
-                    repo: app_repo,
-                    scheduler: app_scheduler,
-                }))
+                app
+                .layer(Extension(state.clone()))
+                .with_state(state)
                 .into_make_service(),
             )
             .await

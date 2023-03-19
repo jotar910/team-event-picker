@@ -17,6 +17,14 @@ pub struct Config {
     #[clap(long, env)]
     pub bot_token: String,
 
+    /// The client id registered for the app slack.
+    #[clap(long, env)]
+    pub client_id: String,
+
+    /// The client secret registered for the app slack.
+    #[clap(long, env)]
+    pub client_secret: String,
+
     /// The PORT number for the server address.
     #[clap(long, env)]
     pub port: u16,

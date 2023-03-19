@@ -1,10 +1,14 @@
 use std::sync::Arc;
 
-use crate::{repository::event::Repository, scheduler::Scheduler};
+use crate::{repository, scheduler::Scheduler};
 
+#[derive(Clone)]
 pub struct AppState {
     pub secret: String,
     pub token: String,
-    pub repo: Arc<dyn Repository>,
+    pub client_id: String,
+    pub client_secret: String,
+    pub repo: Arc<dyn repository::event::Repository>,
+    pub auth_repo: Arc<dyn repository::auth::Repository>,
     pub scheduler: Arc<Scheduler>,
 }

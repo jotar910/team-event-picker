@@ -134,3 +134,27 @@ impl Display for RepeatPeriod {
         write!(f, "{}", self.label())
     }
 }
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Auth {
+    pub id: u32,
+    pub team: String,
+    pub access_token: String,
+    pub deleted: bool
+}
+
+impl HasId for Auth {
+    fn set_id(&mut self, id: u32) {
+        self.id = id;
+    }
+
+    fn get_id(&self) -> u32 {
+        self.id
+    }
+}
+
+impl Display for Auth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "team={}, access_token={}, deleted={}", self.team, self.access_token, self.deleted)
+    }
+}
