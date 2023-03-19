@@ -20,6 +20,8 @@ pub struct Request {
     pub participants: Vec<String>,
     #[serde(skip_deserializing)]
     pub channel: String,
+    #[serde(skip_deserializing)]
+    pub team_id: String,
 }
 
 impl From<Request> for insert_users::Request {
@@ -107,6 +109,7 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         channel: 0,
         prev_pick: 0,
         cur_pick: 0,
+        team_id: req.team_id.clone(),
         deleted: false,
     };
     event.participants = insert_users::execute(repo.clone(), req.into())

@@ -13,6 +13,7 @@ pub fn mock_event() -> Event {
         channel: 0,
         prev_pick: 0,
         cur_pick: 0,
+        team_id: String::from("team-0"),
         deleted: false,
     }
 }

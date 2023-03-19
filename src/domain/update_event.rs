@@ -102,6 +102,7 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         channel: existing_event.channel,
         prev_pick: 0,
         cur_pick: 0,
+        team_id: existing_event.team_id,
         deleted: false,
     };
     event.participants = insert_users::execute(repo.clone(), req.clone().into())

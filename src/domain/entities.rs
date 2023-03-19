@@ -20,6 +20,7 @@ pub struct Event {
     pub channel: u32,
     pub prev_pick: u32,
     pub cur_pick: u32,
+    pub team_id: String,
     pub deleted: bool,
 }
 

@@ -24,6 +24,7 @@ pub struct Pick {
     pub channel_url: String,
     pub user_id: u32,
     pub user_name: String,
+    pub team_id: String,
 }
 
 #[derive(PartialEq, Debug)]
@@ -38,6 +39,7 @@ pub struct PickResult {
     prev_pick: u32,
     channel_id: u32,
     user_id: u32,
+    team_id: String,
 }
 
 pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
@@ -53,6 +55,7 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         .map(|event| {
             let (pick, user_id) = helpers::pick(&event);
             let channel_id = event.channel;
+            let team_id = event.team_id;
 
             channel_ids.insert(event.channel);
             user_ids.insert(user_id);
@@ -62,6 +65,7 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
                 event_name: event.name,
                 prev_pick: pick.prev_pick,
                 cur_pick: pick.cur_pick,
+                team_id,
                 channel_id,
                 user_id,
             }
@@ -111,6 +115,7 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
                 channel_url: channels.get(&pick.channel_id).unwrap().name.clone(),
                 user_id: pick.user_id,
                 user_name: users.get(&pick.user_id).unwrap().name.clone(),
+                team_id: pick.team_id
             },
         );
     }

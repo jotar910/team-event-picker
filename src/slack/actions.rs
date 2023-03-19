@@ -28,6 +28,7 @@ pub struct CommandAction {
     request_type: String,
     response_url: String,
     channel: Channel,
+    user: User,
     state: FormState,
     actions: Vec<Action>,
 }
@@ -35,6 +36,11 @@ pub struct CommandAction {
 #[derive(Deserialize, Debug, Clone)]
 pub struct Channel {
     id: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct User {
+    team_id: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -141,6 +147,7 @@ pub struct CommandActionResponse {
 #[derive(Clone)]
 struct AddEventData {
     channel: String,
+    team_id: String,
     form: FormStateValue,
 }
 
@@ -148,6 +155,7 @@ impl AddEventData {
     fn new(value: CommandAction) -> Self {
         Self {
             channel: value.channel.id,
+            team_id: value.user.team_id,
             form: value.state.into(),
         }
     }
@@ -167,6 +175,7 @@ impl TryFrom<AddEventData> for create_event::Request {
         }
         Ok(create_event::Request {
             channel: data.channel,
+            team_id: data.team_id,
             name: data
                 .form
                 .name_input
