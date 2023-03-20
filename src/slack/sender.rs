@@ -14,7 +14,7 @@ pub async fn join_channel(token: &str, channel: &str) -> Result<(), Box<dyn std:
     .await
 }
 
-pub async fn post_picks(token: &str, picks: Vec<pick_auto_participants::Pick>) {
+pub async fn post_picks(picks: Vec<pick_auto_participants::Pick>) {
     for pick in picks.into_iter() {
         let body = templates::pick_auto(
             pick.channel_url.clone(),
@@ -31,7 +31,7 @@ pub async fn post_picks(token: &str, picks: Vec<pick_auto_participants::Pick>) {
         );
         match helpers::send_authorized_post(
             "https://slack.com/api/chat.postMessage",
-            token,
+            &pick.access_token,
             hyper::Body::from(body),
         )
         .await

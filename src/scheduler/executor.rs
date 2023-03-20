@@ -6,7 +6,7 @@ use tokio::{
 };
 
 use super::{date::Date, entities::EventSchedule, helpers};
-use crate::{domain::pick_auto_participants, repository::event::Repository};
+use crate::{domain::pick_auto_participants, repository::{event, auth}};
 
 struct DateRecords {
     events_per_minute: HashMap<i64, Vec<u32>>,
@@ -23,11 +23,12 @@ impl DateRecords {
 
     async fn check(
         &self,
-        repo: Arc<dyn Repository>,
+        event_repo: Arc<dyn event::Repository>,
+        auth_repo: Arc<dyn auth::Repository>,
         minute: i64,
     ) -> Vec<pick_auto_participants::Pick> {
         if let Some(events) = self.events_per_minute.get(&minute) {
-            if let Some(response) = self.pick_for_events(repo, events).await {
+            if let Some(response) = self.pick_for_events(event_repo, auth_repo, events).await {
                 return response.picks.into_iter().map(|(_, picks)| picks).collect();
             }
         }
@@ -36,13 +37,14 @@ impl DateRecords {
 
     async fn pick_for_events(
         &self,
-        repo: Arc<dyn Repository>,
+        event_repo: Arc<dyn event::Repository>,
+        auth_repo: Arc<dyn auth::Repository>,
         events: &Vec<u32>,
     ) -> Option<pick_auto_participants::Response> {
         let req = pick_auto_participants::Request {
             events: events.clone(),
         };
-        let res = match pick_auto_participants::execute(repo.clone(), req).await {
+        let res = match pick_auto_participants::execute(event_repo.clone(), auth_repo, req).await {
             Ok(res) => res,
             Err(err) => {
                 log::error!("could not automatically pick participants: {:?}", err);
@@ -144,7 +146,7 @@ impl Scheduler {
         }
     }
 
-    pub async fn start(&self, repo: Arc<dyn Repository>) {
+    pub async fn start(&self, event_repo: Arc<dyn event::Repository>, auth_repo: Arc<dyn auth::Repository>) {
         loop {
             helpers::sleep_until_next_minute();
 
@@ -154,7 +156,7 @@ impl Scheduler {
                 {
                     let records = self.mutex.lock().await;
                     log::trace!("scheduler state: minute={}, {}", minute, records);
-                    let picks = records.check(repo.clone(), minute).await;
+                    let picks = records.check(event_repo.clone(), auth_repo.clone(), minute).await;
                     if let Err(err) = self.pick_sender.send(picks).await {
                         log::error!("failed to notify pick results: {}", err);
                     }

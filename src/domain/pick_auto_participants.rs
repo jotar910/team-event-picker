@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use crate::repository::event::Repository;
+use crate::repository::{auth, event};
 
-use crate::domain::entities::{Channel, EventPick, User};
+use crate::domain::entities::{Auth, Channel, EventPick, User};
 
 use super::helpers;
 
@@ -25,6 +25,7 @@ pub struct Pick {
     pub user_id: u32,
     pub user_name: String,
     pub team_id: String,
+    pub access_token: String,
 }
 
 #[derive(PartialEq, Debug)]
@@ -42,14 +43,19 @@ pub struct PickResult {
     team_id: String,
 }
 
-pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    let events = repo
+pub async fn execute(
+    event_repo: Arc<dyn event::Repository>,
+    auth_repo: Arc<dyn auth::Repository>,
+    req: Request,
+) -> Result<Response, Error> {
+    let events = event_repo
         .find_all_events_by_id_unprotected(req.events)
         .await
         .unwrap_or(Vec::new());
 
     let mut channel_ids: HashSet<u32> = HashSet::new();
     let mut user_ids: HashSet<u32> = HashSet::new();
+    let mut team_ids: HashSet<String> = HashSet::new();
     let event_picks: Vec<PickResult> = events
         .into_iter()
         .map(|event| {
@@ -59,6 +65,7 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
 
             channel_ids.insert(event.channel);
             user_ids.insert(user_id);
+            team_ids.insert(team_id.clone());
 
             PickResult {
                 event_id: event.id,
@@ -72,7 +79,7 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         })
         .collect();
 
-    let channels: HashMap<u32, Channel> = repo
+    let channels: HashMap<u32, Channel> = event_repo
         .find_all_channels_by_id(channel_ids.into_iter().collect::<Vec<u32>>())
         .await
         .unwrap_or(vec![])
@@ -80,12 +87,20 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         .map(|channel| (channel.id, channel))
         .collect();
 
-    let users: HashMap<u32, User> = repo
+    let users: HashMap<u32, User> = event_repo
         .find_users(user_ids.into_iter().collect::<Vec<u32>>())
         .await
         .unwrap_or(vec![])
         .into_iter()
         .map(|user| (user.id, user))
+        .collect();
+
+    let tokens: HashMap<String, Auth> = auth_repo
+        .find_all_by_team(team_ids.into_iter().collect::<Vec<String>>())
+        .await
+        .unwrap_or(vec![])
+        .into_iter()
+        .map(|auth| (auth.team.clone(), auth))
         .collect();
 
     let mut picks: HashMap<u32, Pick> = HashMap::new();
@@ -94,7 +109,7 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
             continue;
         }
 
-        if let Err(err) = repo
+        if let Err(err) = event_repo
             .save_pick(EventPick {
                 event: pick.event_id,
                 prev_pick: pick.prev_pick,
@@ -115,7 +130,13 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
                 channel_url: channels.get(&pick.channel_id).unwrap().name.clone(),
                 user_id: pick.user_id,
                 user_name: users.get(&pick.user_id).unwrap().name.clone(),
-                team_id: pick.team_id
+                team_id: pick.team_id.clone(),
+                access_token: tokens.get(&pick.team_id)
+                    .and_then(|auth| Some(auth.access_token.clone()))
+                    .unwrap_or_else(|| {
+                        log::trace!("could not find access token for team id {} while picking automatically for the event {}", pick.team_id, pick.event_id);
+                        String::from("")
+                    }),
             },
         );
     }

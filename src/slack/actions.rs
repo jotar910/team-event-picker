@@ -188,14 +188,12 @@ impl TryFrom<AddEventData> for create_event::Request {
                 .ok_or("no date input")?
                 .selected_date_time
                 .ok_or("no date value")?,
-            timezone: data
+                timezone: data
                 .form
                 .timezone_input
-                .ok_or("no timezone input")?
-                .selected_option
-                .ok_or("no timezone option")?
-                .value
-                .ok_or("no timezone selected value")?,
+                .and_then(|d| d.selected_option)
+                .and_then(|d| d.value)
+                .unwrap_or(Timezone::UTC.into()),
             repeat: data
                 .form
                 .repeat_input
@@ -345,7 +343,7 @@ pub async fn execute(
         let result = match action.block_id.as_deref().unwrap() {
             "add_event_actions" => {
                 handle_add_event(
-                    state.repo.clone(),
+                    state.event_repo.clone(),
                     state.scheduler.clone(),
                     token,
                     action,
@@ -355,7 +353,7 @@ pub async fn execute(
             }
             "edit_event_actions" => {
                 handle_edit_event(
-                    state.repo.clone(),
+                    state.event_repo.clone(),
                     state.scheduler.clone(),
                     action,
                     &payload,
@@ -363,11 +361,11 @@ pub async fn execute(
                 .await
             }
             "select_event_edit_actions" => {
-                handle_edit_select_event(state.repo.clone(), action, &payload).await
+                handle_edit_select_event(state.event_repo.clone(), action, &payload).await
             }
             "delete_event_actions" => {
                 handle_delete_event(
-                    state.repo.clone(),
+                    state.event_repo.clone(),
                     state.scheduler.clone(),
                     action,
                     &payload,
@@ -375,17 +373,17 @@ pub async fn execute(
                 .await
             }
             "select_event_delete_actions" => {
-                handle_delete_select_event(state.repo.clone(), action, &payload).await
+                handle_delete_select_event(state.event_repo.clone(), action, &payload).await
             }
             "select_event_pick_actions" => {
-                handle_pick_select_event(state.repo.clone(), action, &payload).await
+                handle_pick_select_event(state.event_repo.clone(), action, &payload).await
             }
             "select_event_show_actions" => {
-                handle_show_select_event(state.repo.clone(), action, &payload).await
+                handle_show_select_event(state.event_repo.clone(), action, &payload).await
             }
             "list_events_actions" => handle_list_event(action, &payload).await,
             "show_event_actions" | "add_event_success_action" | "edit_event_success_action" => {
-                handle_show_event(state.repo.clone(), action, &payload).await
+                handle_show_event(state.event_repo.clone(), action, &payload).await
             }
             id => {
                 let id = match id.parse::<u32>() {
@@ -397,11 +395,11 @@ pub async fn execute(
                 }
                 match action.action_id.as_deref().unwrap() {
                     "list_event_actions" => {
-                        handle_list_item_event(state.repo.clone(), action, &payload, id).await
+                        handle_list_item_event(state.event_repo.clone(), action, &payload, id).await
                     }
                     "repick_event" => {
                         handle_repick_event(
-                            state.repo.clone(),
+                            state.event_repo.clone(),
                             payload.response_url,
                             payload.channel.id,
                             id,
@@ -748,7 +746,7 @@ async fn handle_show_event(
     command_action: &CommandAction,
 ) -> Result<(), hyper::StatusCode> {
     let action_type = match action.action_id.clone() {
-        Some(action_id) if action_id == "cancel" => {
+        Some(action_id) if action_id == "close" => {
             return handle_close(&command_action.response_url).await
         }
         Some(action_id) => action_id,

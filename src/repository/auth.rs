@@ -3,13 +3,14 @@ use bson::doc;
 
 use crate::domain::entities::{Auth, HasId};
 
-use super::errors::{self, FindError, InsertError, UpdateError};
+use super::errors::{self, FindAllError, FindError, InsertError, UpdateError};
 
 #[async_trait]
 pub trait Repository: Send + Sync {
     async fn insert(&self, auth: Auth) -> Result<Auth, InsertError>;
     async fn update(&self, auth: Auth) -> Result<Auth, UpdateError>;
     async fn find_by_team(&self, team: String) -> Result<Auth, FindError>;
+    async fn find_all_by_team(&self, teams: Vec<String>) -> Result<Vec<Auth>, FindAllError>;
 }
 
 pub struct MongoDbRepository {
@@ -106,5 +107,27 @@ impl Repository for MongoDbRepository {
             Some(event) => Ok(event),
             None => Err(FindError::NotFound),
         }
+    }
+
+    async fn find_all_by_team(&self, teams: Vec<String>) -> Result<Vec<Auth>, FindAllError> {
+        let filter = doc! {
+            "team": {
+                "$in": teams
+                    .iter()
+                    .map(|team| bson::Bson::from(team))
+                    .collect::<Vec<bson::Bson>>()
+            }
+        };
+        let mut cursor = self
+            .db
+            .collection::<Auth>("tokens")
+            .find(filter, None)
+            .await?;
+
+        let mut result: Vec<Auth> = vec![];
+        while cursor.advance().await? {
+            result.push(cursor.deserialize_current()?);
+        }
+        Ok(result)
     }
 }

@@ -28,7 +28,7 @@ pub async fn serve(config: Config) -> Result<()> {
         config.database_name
     );
 
-    let repo = Arc::new(
+    let event_repo = Arc::new(
         repository::event::MongoDbRepository::new(&config.database_url, &config.database_name, 50)
             .await
             .expect("could not connect to database"),
@@ -43,7 +43,8 @@ pub async fn serve(config: Config) -> Result<()> {
 
     // Initialize server thread.
     let app_scheduler = scheduler.clone();
-    let app_repo = repo.clone();
+    let app_event_repo = event_repo.clone();
+    let app_auth_repo = auth_repo.clone();
     let app_config = config.clone();
     let server_task = task::spawn(async move {
         log::info!("Listening on port {}", config.port);
@@ -53,8 +54,8 @@ pub async fn serve(config: Config) -> Result<()> {
             token: app_config.bot_token,
             client_id: app_config.client_id,
             client_secret: app_config.client_secret,
-            repo: app_repo,
-            auth_repo,
+            event_repo: app_event_repo,
+            auth_repo: app_auth_repo,
             scheduler: app_scheduler,
         });
 
@@ -73,21 +74,21 @@ pub async fn serve(config: Config) -> Result<()> {
 
     // Initialize scheduler thread.
     let app_scheduler = scheduler.clone();
-    let app_repo = repo.clone();
+    let app_event_repo = event_repo.clone();
     let scheduler_task = task::spawn(async move {
         log::info!("Scheduler is running");
-        app_scheduler.start(app_repo).await;
+        app_scheduler.start(app_event_repo, auth_repo).await;
     });
 
     // Initialize auto-picker listener thread.
     let auto_picker_task = task::spawn(async move {
         while let Some(picks) = rx.recv().await {
-            sender::post_picks(&config.bot_token, picks).await;
+            sender::post_picks(picks).await;
         }
     });
 
     log::info!("Fetching events to fill up scheduler");
-    match find_all_events_and_dates::execute(repo).await {
+    match find_all_events_and_dates::execute(event_repo).await {
         Ok(events) => {
             for event in events.data.into_iter() {
                 scheduler

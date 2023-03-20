@@ -43,11 +43,11 @@ pub async fn execute(
     let space_idx = args.find(' ').unwrap_or(args.len());
 
     let result = match &args[..space_idx] {
-        "list" => handle_list(state.repo.clone(), payload.channel_id).await,
+        "list" => handle_list(state.event_repo.clone(), payload.channel_id).await,
         "create" => handle_create(),
         "edit" => {
             handle_edit(
-                state.repo.clone(),
+                state.event_repo.clone(),
                 payload.channel_id,
                 &args[space_idx..].trim(),
             )
@@ -55,7 +55,7 @@ pub async fn execute(
         }
         "delete" => {
             handle_delete(
-                state.repo.clone(),
+                state.event_repo.clone(),
                 payload.channel_id,
                 &args[space_idx..].trim(),
             )
@@ -63,7 +63,7 @@ pub async fn execute(
         }
         "show" => {
             handle_show(
-                state.repo.clone(),
+                state.event_repo.clone(),
                 payload.channel_id,
                 &args[space_idx..].trim(),
             )
@@ -71,7 +71,7 @@ pub async fn execute(
         }
         "pick" => {
             handle_pick(
-                state.repo.clone(),
+                state.event_repo.clone(),
                 payload.response_url.clone(),
                 payload.channel_id,
                 &args[space_idx..].trim(),
@@ -80,7 +80,7 @@ pub async fn execute(
         }
         "repick" => {
             handle_repick(
-                state.repo.clone(),
+                state.event_repo.clone(),
                 payload.response_url.clone(),
                 payload.channel_id,
                 &args[space_idx..].trim(),

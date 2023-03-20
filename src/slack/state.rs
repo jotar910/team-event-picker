@@ -8,7 +8,7 @@ pub struct AppState {
     pub token: String,
     pub client_id: String,
     pub client_secret: String,
-    pub repo: Arc<dyn repository::event::Repository>,
+    pub event_repo: Arc<dyn repository::event::Repository>,
     pub auth_repo: Arc<dyn repository::auth::Repository>,
     pub scheduler: Arc<Scheduler>,
 }

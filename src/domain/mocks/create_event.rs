@@ -13,6 +13,7 @@ pub fn mock_create_event_request() -> Request {
         repeat: "daily".to_string(),
         participants: vec!["João".to_string(), "Joana".to_string()],
         channel: "Channel".to_string(),
+        team_id: String::from("team-0"),
     }
 }
 
