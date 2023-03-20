@@ -2,7 +2,7 @@ mod templates;
 mod helpers;
 mod state;
 
-mod auth_guard;
+mod guard;
 mod sender;
 mod commands;
 mod actions;

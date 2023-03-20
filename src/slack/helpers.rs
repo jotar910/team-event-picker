@@ -99,6 +99,26 @@ pub fn find_token(headers: &HeaderMap) -> Result<String, hyper::StatusCode> {
     Ok(token)
 }
 
+pub fn find_reached_limit(headers: &HeaderMap) -> Result<bool, hyper::StatusCode> {
+    let reached_limit: bool = headers
+        .get("x-reached-limit")
+        .ok_or_else(|| {
+            log::trace!("reached limit state not provided on action handler");
+            hyper::StatusCode::BAD_REQUEST
+        })?
+        .to_str()
+        .map_err(|err| {
+            log::trace!("provided invalid reached limit state on action handler: {}", err);
+            hyper::StatusCode::BAD_REQUEST
+        })?
+        .parse()
+        .map_err(|err| {
+            log::trace!("reached limit state is not a bool: {}", err);
+            hyper::StatusCode::BAD_REQUEST
+        })?;
+    Ok(reached_limit)
+}
+
 pub fn to_response(value: &str) -> Result<String, hyper::StatusCode> {
     Ok(json!({ "text": value }).to_string())
 }

@@ -155,7 +155,9 @@ impl Scheduler {
             for minute in current_minute..ending_minute {
                 {
                     let records = self.mutex.lock().await;
-                    log::trace!("scheduler state: minute={}, {}", minute, records);
+                    if minute % 20 == 0 {
+                        log::trace!("scheduler state: minute={}, {}", minute, records);
+                    }
                     let picks = records.check(event_repo.clone(), auth_repo.clone(), minute).await;
                     if let Err(err) = self.pick_sender.send(picks).await {
                         log::error!("failed to notify pick results: {}", err);

@@ -9,7 +9,7 @@ use crate::{
     slack::helpers,
 };
 
-pub async fn list_events(repo: Arc<dyn Repository>, channel: String) -> Result<String, Error> {
+pub async fn list_events(repo: Arc<dyn Repository>, channel: String, reached_limit: bool) -> Result<String, Error> {
     let events = find_all_events::execute(repo, find_all_events::Request { channel })
         .await?
         .data;
@@ -18,6 +18,7 @@ pub async fn list_events(repo: Arc<dyn Repository>, channel: String) -> Result<S
     let result = super::render_template(
         &template,
         json!({
+            "reached_limit": reached_limit,
             "events": events
                 .into_iter()
                 .map(|event|

@@ -19,7 +19,7 @@ pub async fn serve(config: Config) -> Result<()> {
             axum::routing::post(super::commands::execute),
         )
         .route("/api/actions", axum::routing::post(super::actions::execute))
-        .route_layer(middleware::from_fn(super::auth_guard::validate))
+        .route_layer(middleware::from_fn(super::guard::validate))
         .route("/api/oauth", axum::routing::get(super::oauth::execute));
 
     log::info!(

@@ -78,6 +78,7 @@
             "type": "actions",
             "block_id": "list_events_actions",
             "elements": [
+                {{#unless reached_limit}}
                 {
                     "type": "button",
                     "text": {
@@ -86,6 +87,7 @@
                     },
                     "value": "add_event"
                 },
+                {{/unless}}
                 {
                     "type": "button",
                     "text": {

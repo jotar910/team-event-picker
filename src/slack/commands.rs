@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{extract::State, Json};
 use hyper::HeaderMap;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 
 use crate::{
@@ -20,13 +20,6 @@ pub struct CommandRequest {
     pub response_url: String,
 }
 
-#[derive(Serialize, Debug)]
-pub struct CommandResponse {
-    // #[serde(rename = "type")]
-    pub response_type: String,
-    pub text: String,
-}
-
 pub async fn execute(
     headers: HeaderMap,
     State(state): State<Arc<AppState>>,
@@ -38,8 +31,10 @@ pub async fn execute(
     let args = payload.text.trim();
     let space_idx = args.find(' ').unwrap_or(args.len());
 
+    let reached_limit = super::find_reached_limit(&headers)?;
+
     let result = match &args[..space_idx] {
-        "list" => handle_list(state.event_repo.clone(), payload.channel_id).await,
+        "list" => handle_list(state.event_repo.clone(), payload.channel_id, reached_limit).await,
         "create" => handle_create(),
         "edit" => {
             handle_edit(
@@ -130,8 +125,9 @@ pub async fn execute(
 async fn handle_list(
     repo: Arc<dyn Repository>,
     channel: String,
+    reached_limit: bool,
 ) -> Result<String, hyper::StatusCode> {
-    Ok(templates::list_events(repo, channel).await?)
+    Ok(templates::list_events(repo, channel, reached_limit).await?)
 }
 
 fn handle_create() -> Result<String, hyper::StatusCode> {
