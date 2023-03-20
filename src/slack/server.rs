@@ -51,7 +51,6 @@ pub async fn serve(config: Config) -> Result<()> {
 
         let state = Arc::new(super::AppState {
             secret: app_config.signature,
-            token: app_config.bot_token,
             client_id: app_config.client_id,
             client_secret: app_config.client_secret,
             event_repo: app_event_repo,

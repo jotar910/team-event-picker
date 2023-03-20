@@ -5,7 +5,6 @@ use crate::{repository, scheduler::Scheduler};
 #[derive(Clone)]
 pub struct AppState {
     pub secret: String,
-    pub token: String,
     pub client_id: String,
     pub client_secret: String,
     pub event_repo: Arc<dyn repository::event::Repository>,

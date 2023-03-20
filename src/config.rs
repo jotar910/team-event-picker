@@ -13,10 +13,6 @@ pub struct Config {
     #[clap(long, env)]
     pub signature: String,
 
-    /// The token for the bot actions in the slack workspace that uses this application.
-    #[clap(long, env)]
-    pub bot_token: String,
-
     /// The client id registered for the app slack.
     #[clap(long, env)]
     pub client_id: String,
