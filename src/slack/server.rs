@@ -24,17 +24,24 @@ pub async fn serve(config: Config) -> Result<()> {
 
     log::info!(
         "Connecting to database {}/{}",
-        config.database_url,
-        config.database_name
+        config.database_tool_url,
+        config.database_tool_name
     );
 
     let event_repo = Arc::new(
-        repository::event::MongoDbRepository::new(&config.database_url, &config.database_name, 50)
+        repository::event::MongoDbRepository::new(&config.database_tool_url, &config.database_tool_name, 50)
             .await
-            .expect("could not connect to database"),
+            .expect("could not connect to tool database"),
     );
+
+    log::info!(
+        "Connecting to database {}/{}",
+        config.database_auth_url,
+        config.database_auth_name
+    );
+    
     let auth_repo = Arc::new(
-        repository::auth::MongoDbRepository::new(&config.database_url, "auth", 50)
+        repository::auth::MongoDbRepository::new(&config.database_auth_url, &config.database_auth_name, 50)
             .await
             .expect("could not connect to auth database"),
     );

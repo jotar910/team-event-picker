@@ -3,11 +3,19 @@
 pub struct Config {
     /// The connection URL for the database this application should use.
     #[clap(long, env)]
-    pub database_url: String,
+    pub database_tool_url: String,
 
     /// The name for the database this application should use.
     #[clap(long, env)]
-    pub database_name: String,
+    pub database_tool_name: String,
+
+    /// The connection URL for the auth database this application should use.
+    #[clap(long, env)]
+    pub database_auth_url: String,
+
+    /// The name for the auth database this application should use.
+    #[clap(long, env)]
+    pub database_auth_name: String,
 
     /// The signature of the slack workspace that uses this application.
     #[clap(long, env)]
