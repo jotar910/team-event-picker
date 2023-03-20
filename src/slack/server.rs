@@ -8,7 +8,7 @@ use crate::{
     slack::sender,
 };
 
-use axum::{Router, Server, middleware, Extension};
+use axum::{middleware, Extension, Router, Server};
 use hyper::Result;
 use tokio::{join, sync::mpsc, task};
 
@@ -19,7 +19,7 @@ pub async fn serve(config: Config) -> Result<()> {
             axum::routing::post(super::commands::execute),
         )
         .route("/api/actions", axum::routing::post(super::actions::execute))
-        .route_layer(middleware::from_fn(super::auth_guard::guard))
+        .route_layer(middleware::from_fn(super::auth_guard::validate))
         .route("/api/oauth", axum::routing::get(super::oauth::execute));
 
     log::info!(
@@ -61,10 +61,9 @@ pub async fn serve(config: Config) -> Result<()> {
 
         if let Err(err) = Server::bind(&format!("0.0.0.0:{}", app_config.port).parse().unwrap())
             .serve(
-                app
-                .layer(Extension(state.clone()))
-                .with_state(state)
-                .into_make_service(),
+                app.layer(Extension(state.clone()))
+                    .with_state(state)
+                    .into_make_service(),
             )
             .await
         {

@@ -34,10 +34,6 @@ pub async fn execute(
 ) -> Result<Json<Value>, hyper::StatusCode> {
     log::trace!("received command: \n{:?} \n{}", headers, body);
 
-    if !super::verify_signature(headers, body.clone(), &state.secret) {
-        return Err(hyper::StatusCode::UNAUTHORIZED);
-    }
-
     let payload = serde_urlencoded::from_str::<CommandRequest>(&body).unwrap();
     let args = payload.text.trim();
     let space_idx = args.find(' ').unwrap_or(args.len());

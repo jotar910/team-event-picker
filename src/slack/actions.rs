@@ -325,10 +325,6 @@ pub async fn execute(
 
     let token = super::find_token(&headers)?;
 
-    if !super::verify_signature(headers, body.clone(), &state.secret) {
-        return Err(hyper::StatusCode::UNAUTHORIZED);
-    }
-
     let payload: CommandAction = serde_json::from_str(&payload.payload).unwrap();
 
     if payload.request_type != "block_actions" {
