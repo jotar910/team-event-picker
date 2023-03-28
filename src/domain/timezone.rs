@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use chrono_tz::{Tz, Asia, Europe, Australia, Pacific, America, Africa};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -86,6 +87,43 @@ impl Timezone {
         TimezoneOption {
             label: self.to_string(),
             value: self.into(),
+        }
+    }
+
+    pub fn tz(&self) -> Tz {
+        match self {
+            Timezone::GMT => Europe::Lisbon,
+            Timezone::ECT => Europe::Paris,
+            Timezone::EET => Europe::Athens,
+            Timezone::ART => Africa::Cairo,
+            Timezone::EAT => Africa::Nairobi,
+            Timezone::MET => Europe::Madrid,
+            Timezone::NET => Asia::Tashkent,
+            Timezone::PLT => Asia::Karachi,
+            Timezone::IST => Asia::Kolkata,
+            Timezone::BST => Asia::Dhaka,
+            Timezone::VST => Asia::Ho_Chi_Minh,
+            Timezone::CTT => Asia::Shanghai,
+            Timezone::JST => Asia::Tokyo,
+            Timezone::ACT => Australia::Darwin,
+            Timezone::AET => Australia::Sydney,
+            Timezone::SST => Pacific::Guadalcanal,
+            Timezone::NST => Pacific::Auckland,
+            Timezone::MIT => Pacific::Midway,
+            Timezone::HST => Pacific::Honolulu,
+            Timezone::AST => America::Halifax,
+            Timezone::PST => America::Los_Angeles,
+            Timezone::PNT => America::Phoenix,
+            Timezone::MST => America::Denver,
+            Timezone::CST => America::Chicago,
+            Timezone::EST => America::New_York,
+            Timezone::IET => America::Indiana::Indianapolis,
+            Timezone::PRT => America::Puerto_Rico,
+            Timezone::CNT => America::St_Johns,
+            Timezone::AGT => America::Argentina::Buenos_Aires,
+            Timezone::BET => America::Sao_Paulo,
+            Timezone::CAT => Africa::Harare,
+            Timezone::UTC => Europe::Lisbon,
         }
     }
 

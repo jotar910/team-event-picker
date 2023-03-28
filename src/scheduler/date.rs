@@ -4,15 +4,13 @@ use std::{
 };
 
 use chrono::{
-    DateTime, Datelike, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, Utc, Weekday,
+    DateTime, Datelike, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, TimeZone, Utc,
+    Weekday,
 };
 
 use crate::domain::{entities::RepeatPeriod, timezone::Timezone};
 
 use super::helpers;
-
-const MINUTES_IN_A_DAY: i64 = 24 * 60;
-const MINUTES_IN_A_WEEK: i64 = 7 * MINUTES_IN_A_DAY;
 
 #[derive(Clone, Copy)]
 struct Milliseconds(i64);
@@ -89,6 +87,7 @@ impl DateUtils for ChronoUtils {
 
 pub struct Date {
     time: DateTime<Utc>,
+    timezone: Timezone,
     frequency: RepeatPeriod,
     utils: Box<dyn DateUtils>,
 }
@@ -101,6 +100,7 @@ impl Date {
     pub fn clone(&self) -> Self {
         Self {
             time: self.time,
+            timezone: self.timezone.clone(),
             frequency: self.frequency.clone(),
             utils: self.utils.clone(),
         }
@@ -114,18 +114,18 @@ impl Date {
     ) -> Self {
         let time = DateTime::<Local>::from_local(
             NaiveDateTime::from_timestamp_opt(timestamp, 0).unwrap_or(NaiveDateTime::default()),
-            FixedOffset::east_opt(Timezone::from(timezone).into()).unwrap(),
+            FixedOffset::east_opt(timezone.clone().into()).unwrap(),
         )
         .with_timezone(&Utc);
         Self {
             time,
+            timezone,
             frequency,
             utils,
         }
     }
 
     pub fn find_minutes(&self) -> Vec<i64> {
-        let total = Milliseconds::from(Minutes(helpers::find_ending_minute()));
         let time = Milliseconds::from_timestamp(self.time.timestamp());
         match self.frequency {
             RepeatPeriod::None => {
@@ -138,14 +138,8 @@ impl Date {
                     vec![]
                 }
             }
-            RepeatPeriod::Daily => {
-                let interval = Milliseconds::from(Minutes(MINUTES_IN_A_DAY));
-                self.find_minutes_by_interval(total, time, interval)
-            }
-            RepeatPeriod::Weekly(n) => {
-                let interval = Milliseconds::from(Minutes((n as i64) * MINUTES_IN_A_WEEK));
-                self.find_minutes_by_interval(total, time, interval)
-            }
+            RepeatPeriod::Daily => self.find_minutes_by_interval(time, 1),
+            RepeatPeriod::Weekly(n) => self.find_minutes_by_interval(time, (n as u32) * 7),
             RepeatPeriod::Monthly(n) => {
                 self.find_minutes_by_week_day(n as u32, self.find_week_day())
             }
@@ -158,28 +152,36 @@ impl Date {
         }
     }
 
-    fn find_minutes_by_interval(
-        &self,
-        total: Milliseconds,
-        time: Milliseconds,
-        interval: Milliseconds,
-    ) -> Vec<i64> {
+    fn find_minutes_by_interval(&self, time: Milliseconds, interval: u32) -> Vec<i64> {
         let year_start = Milliseconds::from_timestamp(helpers::find_first_day_of_year_timestamp(
             self.time.year(),
         ));
+        let year_end = Milliseconds::from_timestamp(helpers::find_first_day_of_year_timestamp(
+            self.time.year() + 1,
+        ));
+        let interval_duration = Duration::days(interval as i64);
 
-        let range_start = time - year_start;
-        let range = total - range_start;
-        let repetitions = range / interval;
-
+        let mut position_time = time;
         let mut minutes = vec![];
-        for i in 0..repetitions + 1 {
-            let millis = interval * i;
-            let weekday = NaiveDateTime::from_timestamp_millis(time.0 + millis.0).unwrap().weekday();
-            if weekday != Weekday::Sat && weekday != Weekday::Sun {
-                minutes.push(Minutes::from(range_start + millis).0);
+        while position_time.0 < year_end.0 {
+            let position_date = NaiveDateTime::from_timestamp_millis(position_time.0).unwrap();
+            let position_weekday = position_date.weekday();
+            if interval != 1
+                || (position_weekday != Weekday::Sat && position_weekday != Weekday::Sun)
+            {
+                let position = Milliseconds::from_timestamp(
+                    self.timezone
+                        .tz()
+                        .from_local_datetime(&position_date)
+                        .unwrap()
+                        .timestamp(),
+                ) - year_start;
+                minutes.push(Minutes::from(position).0);
             }
+            let next_position_date = position_date + interval_duration;
+            position_time = Milliseconds::from_timestamp(next_position_date.timestamp());
         }
+
         minutes
     }
 
@@ -253,6 +255,8 @@ mod tests {
 
     use super::*;
 
+    const MINUTES_IN_A_DAY: i64 = 24 * 60;
+
     #[test]
     fn it_should_create_date_instance() {
         let date = 978310860; // String::from("2001-01-01 01:01:00.000 UTC")
@@ -277,7 +281,12 @@ mod tests {
         let timezone = Timezone::UTC;
         let repeat = RepeatPeriod::None;
 
-        let result = Date::new_date(date, timezone, repeat, Box::new(MockDateUtils::from_ymd(2000, 1, 1)));
+        let result = Date::new_date(
+            date,
+            timezone,
+            repeat,
+            Box::new(MockDateUtils::from_ymd(2000, 1, 1)),
+        );
         let result = result.find_minutes();
         assert_eq!(result.len(), 0);
     }
@@ -288,7 +297,12 @@ mod tests {
         let timezone = Timezone::UTC;
         let repeat = RepeatPeriod::None;
 
-        let result = Date::new_date(date, timezone, repeat, Box::new(MockDateUtils::from_ymd(2023, 1, 1)));
+        let result = Date::new_date(
+            date,
+            timezone,
+            repeat,
+            Box::new(MockDateUtils::from_ymd(2023, 1, 1)),
+        );
         let result = result.find_minutes();
         assert_eq!(result, vec![MINUTES_IN_A_DAY + 1]);
     }
@@ -299,7 +313,12 @@ mod tests {
         let timezone = Timezone::UTC;
         let repeat = RepeatPeriod::Yearly;
 
-        let result = Date::new_date(date, timezone, repeat, Box::new(MockDateUtils::from_ymd(2023, 1, 1)));
+        let result = Date::new_date(
+            date,
+            timezone,
+            repeat,
+            Box::new(MockDateUtils::from_ymd(2023, 1, 1)),
+        );
         let result = result.find_minutes();
         assert_eq!(result, vec![MINUTES_IN_A_DAY + 1]);
     }
@@ -344,7 +363,10 @@ mod tests {
         let minutes: Vec<i64> = (0..52)
             .into_iter()
             .map(|index| 2 + index * 7)
-            .map(|day| (day - 1) * (24 * 60) + 1)
+            .enumerate()
+            .map(|(index, day)| {
+                (day - 1) * (24 * 60) + 1 - (if index < 12 || index > 42 { 0 } else { 60 })
+            })
             .collect();
         assert_eq!(result, minutes);
     }
@@ -362,7 +384,10 @@ mod tests {
         let minutes: Vec<i64> = (0..26)
             .into_iter()
             .map(|index| 2 + index * 7 * 2)
-            .map(|day| (day - 1) * (24 * 60) + 1)
+            .enumerate()
+            .map(|(index, day)| {
+                (day - 1) * (24 * 60) + 1 - (if index < 6 || index > 21 { 0 } else { 60 })
+            })
             .collect();
         assert_eq!(result, minutes);
     }
