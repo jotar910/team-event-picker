@@ -1,20 +1,31 @@
-FROM amd64/rust AS builder-chef
-WORKDIR /app
-RUN cargo install cargo-chef
-
-# generate a recipe file for dependencies
-FROM builder-chef as planner
-COPY . .
-RUN PKG_CONFIG_ALLOW_CROSS=1 cargo chef prepare --recipe-path recipe.json
-
-# build our dependencies
-FROM builder-chef as cacher
-COPY --from=planner /app/recipe.json recipe.json
-ENV RUST_BACKTRACE full
-RUN cargo chef cook --release --recipe-path recipe.json
-
 # use the main official rust docker image as our builder
 FROM amd64/rust as builder
+
+# create a new empty shell project
+RUN USER=root cargo new --bin team-event-picker
+WORKDIR /team-event-picker
+
+# copy over your manifests
+COPY ./Cargo.lock ./Cargo.lock
+COPY ./Cargo.toml ./Cargo.toml
+
+# this build step will cache your dependencies
+RUN rustup toolchain install nightly
+RUN PKG_CONFIG_ALLOW_CROSS=1 cargo +nightly build --release -Z sparse-registry
+RUN rm src/*.rs
+
+# copy your source tree
+COPY ./src ./src
+COPY ./.env ./.env
+
+# build for release
+RUN rm ./target/release/deps/team_event_picker*
+RUN PKG_CONFIG_ALLOW_CROSS=1 cargo +nightly build --release -Z sparse-registry
+
+# CMD ["/team-event-picker/target/release/team-event-picker"]
+
+# our final base
+FROM debian:bullseye-slim AS runtime
 
 ENV USER=web
 ENV UID=1001
@@ -27,13 +38,12 @@ RUN adduser \
     --uid "${UID}" \
     "${USER}"
 
-COPY . /app
-WORKDIR /app
-COPY --from=cacher /app/target target
-COPY --from=cacher /usr/local/cargo /usr/local/cargo
-
-RUN PKG_CONFIG_ALLOW_CROSS=1 cargo build --release
-
 USER web
 
-CMD ["/app/target/release/team-event-picker"]
+WORKDIR /app
+
+# copy the build artifact from the build stage
+COPY --from=builder /team-event-picker/target/release/team-event-picker /app
+COPY --from=builder /team-event-picker/.env /app
+
+CMD ["/app/team-event-picker"]
