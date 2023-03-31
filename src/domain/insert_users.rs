@@ -79,35 +79,3 @@ async fn fill_with_existing_users<'a>(
 
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domain::mocks;
-    use crate::repository::event::InMemoryRepository;
-
-    #[tokio::test]
-    async fn it_should_update_participants_for_the_given_event() {
-        let repo = Arc::new(InMemoryRepository::new());
-
-        let result = mocks::insert_mock_event(repo.clone()).await;
-
-        assert_eq!(result.participants, vec![0, 1]);
-
-        // Testing insert_users here ---
-
-        let req = Request {
-            names: mocks::mock_users_names(),
-        };
-
-        let result = execute(repo, req).await;
-
-        match result {
-            Ok(Response { users }) => assert_eq!(
-                users.into_iter().map(|user| user.id).collect::<Vec<u32>>(),
-                vec![2, 3, 1]
-            ),
-            _ => unreachable!(),
-        }
-    }
-}

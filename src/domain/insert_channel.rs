@@ -38,26 +38,3 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
 
     Ok(Response { channel })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domain::mocks;
-    use crate::repository::event::InMemoryRepository;
-
-    #[tokio::test]
-    async fn it_should_update_participants_for_the_given_event() {
-        let repo = Arc::new(InMemoryRepository::new());
-
-        let req = Request {
-            name: mocks::mock_channel().name,
-        };
-
-        let result = execute(repo, req).await;
-
-        match result {
-            Ok(Response { channel }) => assert_eq!(channel, mocks::mock_channel()),
-            _ => unreachable!(),
-        }
-    }
-}

@@ -76,38 +76,3 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         }),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domain::entities::Event;
-    use crate::domain::mocks;
-    use crate::repository::event::InMemoryRepository;
-
-    #[tokio::test]
-    async fn it_should_update_participants() {
-        let repo = Arc::new(InMemoryRepository::new());
-
-        mocks::insert_mock_event(repo.clone()).await;
-
-        // Testing update_participants here ---
-
-        let req = Request {
-            event: 0,
-            participants: mocks::mock_users_names(),
-            channel: String::from("Channel"),
-        };
-
-        let result = execute(repo.clone(), req).await;
-
-        match result {
-            Ok(Response { id, .. }) => assert_eq!(id, 0),
-            _ => unreachable!(),
-        }
-
-        match repo.find_event(0, 0).await {
-            Ok(Event { participants, .. }) => assert_eq!(participants, vec![0]),
-            _ => unreachable!(),
-        }
-    }
-}

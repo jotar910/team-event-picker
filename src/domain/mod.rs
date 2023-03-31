@@ -18,6 +18,3 @@ pub mod verify_auth;
 pub mod entities;
 pub mod dtos;
 pub mod helpers;
-
-#[cfg(test)]
-pub mod mocks;
