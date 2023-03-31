@@ -3,7 +3,7 @@ use std::{collections::HashSet, fmt::Display, sync::Arc};
 use axum::extract::{Query, State};
 use serde::{Deserialize, Serialize};
 
-use crate::{domain::save_auth, slack::helpers};
+use crate::{domain::auth::save_auth, slack::helpers};
 
 use super::state::AppState;
 

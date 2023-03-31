@@ -5,7 +5,7 @@ use crate::repository::{
     errors::{FindError, InsertError, UpdateError},
 };
 
-use super::entities::Auth;
+use crate::domain::entities::Auth;
 
 pub struct Request {
     pub team: String,
