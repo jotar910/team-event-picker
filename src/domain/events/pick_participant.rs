@@ -3,8 +3,8 @@ use std::sync::Arc;
 use crate::repository::errors::{FindError, UpdateError};
 use crate::repository::event::Repository;
 
-use super::entities::User;
-use super::helpers;
+use crate::domain::entities::User;
+use crate::domain::helpers;
 
 pub struct Request {
     pub event: u32,

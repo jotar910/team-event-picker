@@ -3,15 +3,15 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use serde_trim::{string_trim, vec_string_trim};
 
-use crate::repository::errors::{FindError, UpdateError};
+use crate::repository::errors::{FindError, InsertError};
 use crate::repository::event::Repository;
 
 use crate::domain::entities::{Event, RepeatPeriod};
-use crate::domain::{insert_channel, insert_users, timezone::Timezone};
+use crate::domain::events::{insert_channel, insert_users};
+use crate::domain::timezone::Timezone;
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct Request {
-    pub id: u32,
     #[serde(deserialize_with = "string_trim")]
     pub name: String,
     pub timestamp: i64,
@@ -21,6 +21,8 @@ pub struct Request {
     pub participants: Vec<String>,
     #[serde(skip_deserializing)]
     pub channel: String,
+    #[serde(skip_deserializing)]
+    pub team_id: String,
 }
 
 impl From<Request> for insert_users::Request {
@@ -45,13 +47,13 @@ pub struct Response {
     pub timestamp: i64,
     pub timezone: Timezone,
     pub repeat: RepeatPeriod,
+    pub created_channel: Option<String>,
 }
 
 #[derive(PartialEq, Debug)]
 pub enum Error {
     BadRequest,
     Conflict,
-    NotFound,
     Unknown,
 }
 
@@ -72,61 +74,70 @@ impl From<insert_channel::Error> for Error {
 }
 
 pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    let channel = repo
-        .find_channel_by_name(req.channel.clone())
-        .await
-        .map_err(|error| {
-            return match error {
-                FindError::NotFound => Error::NotFound,
-                FindError::Unknown => Error::Unknown,
-            };
-        })?;
-
-    let existing_event = match repo.clone().find_event(req.id.clone(), channel.id).await {
-        Ok(event) => event,
+    let mut created_channel = None;
+    let channel = match repo.clone().find_channel_by_name(req.channel.clone()).await {
+        Ok(channel) => channel,
+        Err(FindError::NotFound) => {
+            created_channel = Some(req.channel.clone());
+            insert_channel::execute(repo.clone(), req.clone().into())
+                .await?
+                .channel
+        }
         Err(error) => {
             return Err(match error {
-                FindError::NotFound => Error::NotFound,
+                FindError::NotFound => Error::BadRequest,
                 FindError::Unknown => Error::Unknown,
             })
         }
     };
+    match repo
+        .clone()
+        .find_event_by_name(req.name.clone(), channel.id)
+        .await
+    {
+        Ok(..) => return Err(Error::Conflict),
+        Err(error) if error != FindError::NotFound => return Err(Error::Unknown),
+        _ => (),
+    };
 
     let mut event = Event {
-        id: existing_event.id,
+        id: 0,
         name: req.name.clone(),
         timestamp: req.timestamp,
         timezone: Timezone::from(req.timezone.clone()),
         repeat: RepeatPeriod::try_from(req.repeat.clone()).map_err(|_| Error::BadRequest)?,
         participants: vec![],
-        channel: existing_event.channel,
+        channel: 0,
         prev_pick: 0,
         cur_pick: 0,
-        team_id: existing_event.team_id,
+        team_id: req.team_id.clone(),
         deleted: false,
     };
-    event.participants = insert_users::execute(repo.clone(), req.clone().into())
+    event.participants = insert_users::execute(repo.clone(), req.into())
         .await?
         .users
         .iter()
         .map(|user| user.id)
         .collect();
-    event.channel = insert_channel::execute(repo.clone(), req.clone().into())
-        .await?
-        .channel
-        .id;
+    event.channel = channel.id;
 
-    match repo.update_event(event.clone()).await {
-        Ok(..) => Ok(Response {
-            id: event.id,
-            timestamp: event.timestamp,
-            timezone: event.timezone,
-            repeat: event.repeat,
+    match repo.insert_event(event).await {
+        Ok(Event {
+            id,
+            timestamp,
+            timezone,
+            repeat,
+            ..
+        }) => Ok(Response {
+            id,
+            timestamp,
+            timezone,
+            repeat,
+            created_channel,
         }),
         Err(err) => Err(match err {
-            UpdateError::Conflict => Error::Conflict,
-            UpdateError::NotFound => Error::NotFound,
-            UpdateError::Unknown => Error::Unknown,
+            InsertError::Conflict => Error::Conflict,
+            InsertError::Unknown => Error::Unknown,
         }),
     }
 }

@@ -6,7 +6,10 @@ use tokio::{
 };
 
 use super::{date::Date, entities::EventSchedule, helpers};
-use crate::{domain::pick_auto_participants, repository::{event, auth}};
+use crate::{
+    domain::events::pick_auto_participants,
+    repository::{auth, event},
+};
 
 struct DateRecords {
     events_per_minute: HashMap<i64, Vec<u32>>,
@@ -146,7 +149,11 @@ impl Scheduler {
         }
     }
 
-    pub async fn start(&self, event_repo: Arc<dyn event::Repository>, auth_repo: Arc<dyn auth::Repository>) {
+    pub async fn start(
+        &self,
+        event_repo: Arc<dyn event::Repository>,
+        auth_repo: Arc<dyn auth::Repository>,
+    ) {
         loop {
             helpers::sleep_until_next_minute();
 
@@ -158,7 +165,9 @@ impl Scheduler {
                     if minute % 20 == 0 {
                         log::trace!("scheduler state: minute={}, {}", minute, records);
                     }
-                    let picks = records.check(event_repo.clone(), auth_repo.clone(), minute).await;
+                    let picks = records
+                        .check(event_repo.clone(), auth_repo.clone(), minute)
+                        .await;
                     if let Err(err) = self.pick_sender.send(picks).await {
                         log::error!("failed to notify pick results: {}", err);
                     }

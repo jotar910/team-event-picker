@@ -3,10 +3,9 @@ use std::sync::Arc;
 use serde::Serialize;
 
 use crate::domain::entities::{Channel, RepeatPeriod, User};
+use crate::domain::timezone::Timezone;
 use crate::repository::errors::{FindAllError, FindError};
 use crate::repository::event::Repository;
-
-use super::timezone::Timezone;
 
 #[derive(Debug, PartialEq)]
 pub enum Error {

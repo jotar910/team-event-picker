@@ -1,3 +1,3 @@
 pub mod auth;
-pub mod event;
 pub mod errors;
+pub mod event;

@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::{
-    domain::{pick_participant, repick_participant},
+    domain::events::{pick_participant, repick_participant},
     repository::event::Repository,
 };
 

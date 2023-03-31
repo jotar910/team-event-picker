@@ -147,8 +147,12 @@ pub async fn execute(
         log::error!("unable to save oauth access token: {:?}", err);
         return Err(hyper::StatusCode::INTERNAL_SERVER_ERROR);
     }
-    
-    log::trace!("saved oauth access token: token_id={}, access_token={}", response.team_id, response.access_token);
+
+    log::trace!(
+        "saved oauth access token: token_id={}, access_token={}",
+        response.team_id,
+        response.access_token
+    );
 
     Ok(())
 }

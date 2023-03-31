@@ -4,12 +4,20 @@ use hyper::StatusCode;
 use serde_json::{json, Value};
 
 use crate::{
-    domain::{entities::User, find_all_events, find_event, timezone::Timezone},
+    domain::{
+        entities::User,
+        events::{find_all_events, find_event},
+        timezone::Timezone,
+    },
     repository::event::Repository,
     slack::helpers,
 };
 
-pub async fn list_events(repo: Arc<dyn Repository>, channel: String, reached_limit: bool) -> Result<String, Error> {
+pub async fn list_events(
+    repo: Arc<dyn Repository>,
+    channel: String,
+    reached_limit: bool,
+) -> Result<String, Error> {
     let events = find_all_events::execute(repo, find_all_events::Request { channel })
         .await?
         .data;

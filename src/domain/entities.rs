@@ -126,7 +126,8 @@ impl TryFrom<RepeatPeriod> for String {
             RepeatPeriod::Monthly(2) => "monthly_two",
             RepeatPeriod::Yearly => "yearly",
             _ => return Err(()),
-        }.to_string())
+        }
+        .to_string())
     }
 }
 
@@ -141,7 +142,7 @@ pub struct Auth {
     pub id: u32,
     pub team: String,
     pub access_token: String,
-    pub deleted: bool
+    pub deleted: bool,
 }
 
 impl HasId for Auth {
@@ -156,6 +157,10 @@ impl HasId for Auth {
 
 impl Display for Auth {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "team={}, access_token={}, deleted={}", self.team, self.access_token, self.deleted)
+        write!(
+            f,
+            "team={}, access_token={}, deleted={}",
+            self.team, self.access_token, self.deleted
+        )
     }
 }

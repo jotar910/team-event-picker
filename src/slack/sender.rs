@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use crate::domain::pick_auto_participants;
+use crate::domain::events::pick_auto_participants;
 
 use super::{helpers, templates};
 

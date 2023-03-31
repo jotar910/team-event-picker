@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     config::Config,
-    domain::{find_all_events_and_dates, pick_auto_participants},
+    domain::events::{find_all_events_and_dates, pick_auto_participants},
     repository,
     scheduler::{entities::EventSchedule, Scheduler},
     slack::sender,
@@ -29,9 +29,13 @@ pub async fn serve(config: Config) -> Result<()> {
     );
 
     let event_repo = Arc::new(
-        repository::event::MongoDbRepository::new(&config.database_tool_url, &config.database_tool_name, 50)
-            .await
-            .expect("could not connect to tool database"),
+        repository::event::MongoDbRepository::new(
+            &config.database_tool_url,
+            &config.database_tool_name,
+            50,
+        )
+        .await
+        .expect("could not connect to tool database"),
     );
 
     log::info!(
@@ -39,11 +43,15 @@ pub async fn serve(config: Config) -> Result<()> {
         config.database_auth_url,
         config.database_auth_name
     );
-    
+
     let auth_repo = Arc::new(
-        repository::auth::MongoDbRepository::new(&config.database_auth_url, &config.database_auth_name, 50)
-            .await
-            .expect("could not connect to auth database"),
+        repository::auth::MongoDbRepository::new(
+            &config.database_auth_url,
+            &config.database_auth_name,
+            50,
+        )
+        .await
+        .expect("could not connect to auth database"),
     );
     let (tx, mut rx) = mpsc::channel::<Vec<pick_auto_participants::Pick>>(1);
     let scheduler = Arc::new(Scheduler::new(tx));

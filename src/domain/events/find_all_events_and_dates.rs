@@ -4,10 +4,9 @@ use serde::Serialize;
 
 use crate::domain::dtos::ListResponse;
 use crate::domain::entities::RepeatPeriod;
+use crate::domain::timezone::Timezone;
 use crate::repository::errors::FindAllError;
 use crate::repository::event::Repository;
-
-use super::timezone::Timezone;
 
 #[derive(Serialize, Debug)]
 pub struct Response {

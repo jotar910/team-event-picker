@@ -2,11 +2,10 @@ use std::sync::Arc;
 
 use serde::Serialize;
 
-use crate::domain::insert_users;
+use crate::domain::events::insert_users;
+use crate::domain::helpers::pick_update::PickUpdateHelper;
 use crate::repository::errors::{FindError, UpdateError};
 use crate::repository::event::Repository;
-
-use super::helpers::pick_update::PickUpdateHelper;
 
 pub struct Request {
     pub event: u32,

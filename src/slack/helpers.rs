@@ -108,7 +108,10 @@ pub fn find_reached_limit(headers: &HeaderMap) -> Result<bool, hyper::StatusCode
         })?
         .to_str()
         .map_err(|err| {
-            log::trace!("provided invalid reached limit state on action handler: {}", err);
+            log::trace!(
+                "provided invalid reached limit state on action handler: {}",
+                err
+            );
             hyper::StatusCode::BAD_REQUEST
         })?
         .parse()

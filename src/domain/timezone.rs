@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use chrono_tz::{Tz, Asia, Europe, Australia, Pacific, America, Africa};
+use chrono_tz::{Africa, America, Asia, Australia, Europe, Pacific, Tz};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

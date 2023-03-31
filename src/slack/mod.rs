@@ -1,12 +1,12 @@
-mod templates;
 mod helpers;
 mod state;
+mod templates;
 
-mod guard;
-mod sender;
-mod commands;
 mod actions;
+mod commands;
+mod guard;
 mod oauth;
+mod sender;
 mod server;
 
 use helpers::*;

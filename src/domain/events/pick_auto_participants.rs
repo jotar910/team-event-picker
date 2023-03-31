@@ -4,8 +4,7 @@ use std::sync::Arc;
 use crate::repository::{auth, event};
 
 use crate::domain::entities::{Auth, Channel, EventPick, User};
-
-use super::helpers;
+use crate::domain::helpers;
 
 pub struct Request {
     pub events: Vec<u32>,

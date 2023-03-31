@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::domain::entities::User;
-use crate::domain::pick_participant;
+use crate::domain::events::pick_participant;
 use crate::repository::errors::{FindError, UpdateError};
 use crate::repository::event::Repository;
 

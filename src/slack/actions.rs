@@ -4,12 +4,12 @@ use axum::extract::{Form, State};
 use hyper::HeaderMap;
 use serde::{Deserialize, Serialize};
 
+use crate::domain::entities::RepeatPeriod;
 use crate::domain::timezone::Timezone;
 use crate::scheduler::{entities::EventSchedule, Scheduler};
 use crate::{
-    domain::{
-        create_event, delete_event, entities::RepeatPeriod, find_event, pick_participant,
-        repick_participant, update_event,
+    domain::events::{
+        create_event, delete_event, find_event, pick_participant, repick_participant, update_event,
     },
     repository::event::Repository,
 };
@@ -188,7 +188,7 @@ impl TryFrom<AddEventData> for create_event::Request {
                 .ok_or("no date input")?
                 .selected_date_time
                 .ok_or("no date value")?,
-                timezone: data
+            timezone: data
                 .form
                 .timezone_input
                 .and_then(|d| d.selected_option)

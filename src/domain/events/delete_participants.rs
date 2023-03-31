@@ -5,7 +5,7 @@ use serde::Serialize;
 use crate::repository::errors::{FindAllError, FindError, UpdateError};
 use crate::repository::event::Repository;
 
-use super::helpers::pick_update::PickUpdateHelper;
+use crate::domain::helpers::pick_update::PickUpdateHelper;
 
 pub struct Request {
     pub event: u32,

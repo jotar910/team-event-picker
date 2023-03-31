@@ -17,7 +17,10 @@ pub fn find_current_minute() -> i64 {
 pub fn find_ending_minute() -> i64 {
     let now = Utc::now().with_second(0).unwrap();
 
-    (find_first_day_of_year_timestamp(now.year() + 1) - find_first_day_of_year_timestamp(now.year())) / 60 - 1
+    (find_first_day_of_year_timestamp(now.year() + 1)
+        - find_first_day_of_year_timestamp(now.year()))
+        / 60
+        - 1
 }
 
 pub fn find_first_day_of_year_timestamp(year: i32) -> i64 {
