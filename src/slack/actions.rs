@@ -14,6 +14,7 @@ use crate::{
     repository::event::Repository,
 };
 
+use super::state::AppConfigs;
 use super::{sender, templates, AppState};
 
 #[derive(Serialize, Deserialize)]
@@ -149,14 +150,16 @@ struct AddEventData {
     channel: String,
     team_id: String,
     form: FormStateValue,
+    max_events: u32,
 }
 
 impl AddEventData {
-    fn new(value: CommandAction) -> Self {
+    fn new(value: CommandAction, max_events: u32) -> Self {
         Self {
             channel: value.channel.id,
             team_id: value.user.team_id,
             form: value.state.into(),
+            max_events,
         }
     }
 }
@@ -174,6 +177,7 @@ impl TryFrom<AddEventData> for create_event::Request {
             return Err(String::from("participants is empty"));
         }
         Ok(create_event::Request {
+            max_events: data.max_events,
             channel: data.channel,
             team_id: data.team_id,
             name: data
@@ -341,6 +345,7 @@ pub async fn execute(
                 handle_add_event(
                     state.event_repo.clone(),
                     state.scheduler.clone(),
+                    state.configs.clone(),
                     token,
                     action,
                     &payload,
@@ -421,6 +426,7 @@ pub async fn execute(
 async fn handle_add_event(
     repo: Arc<dyn Repository>,
     scheduler: Arc<Scheduler>,
+    configs: Arc<AppConfigs>,
     token: String,
     action: &Action,
     command_action: &CommandAction,
@@ -432,7 +438,7 @@ async fn handle_add_event(
         return handle_close(&command_action.response_url).await;
     }
 
-    let request: create_event::Request = match AddEventData::new(command_action.clone()).try_into()
+    let request: create_event::Request = match AddEventData::new(command_action.clone(), configs.max_events).try_into()
     {
         Ok(data) => data,
         Err(err) => {

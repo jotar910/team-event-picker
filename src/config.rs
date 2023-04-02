@@ -32,4 +32,8 @@ pub struct Config {
     /// The PORT number for the server address.
     #[clap(long, env)]
     pub port: u16,
+
+    /// The maximum number of events allowed per channel.
+    #[clap(long, env)]
+    pub max_events: u32,
 }

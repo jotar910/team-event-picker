@@ -3,7 +3,9 @@ use mongodb::bson::doc;
 use serde::de::DeserializeOwned;
 
 use crate::domain::entities::{Channel, Event, EventPick, HasId, User};
-use crate::repository::errors::{DeleteError, FindAllError, FindError, InsertError, UpdateError};
+use crate::repository::errors::{
+    CountError, DeleteError, FindAllError, FindError, InsertError, UpdateError,
+};
 
 #[allow(drop_bounds)]
 pub trait Transition: Drop {
@@ -24,6 +26,7 @@ pub trait Repository: Send + Sync {
     async fn insert_event(&self, event: Event) -> Result<Event, InsertError>;
     async fn update_event(&self, event: Event) -> Result<(), UpdateError>;
     async fn delete_event(&self, id: u32, channel: u32) -> Result<Event, DeleteError>;
+    async fn count_events(&self, channel: u32) -> Result<u32, CountError>;
 
     async fn find_channel(&self, id: u32) -> Result<Channel, FindError>;
     async fn find_channel_by_name(&self, name: String) -> Result<Channel, FindError>;
@@ -274,6 +277,17 @@ impl Repository for MongoDbRepository {
             Some(event) => Ok(event),
             None => Err(DeleteError::NotFound),
         }
+    }
+
+    async fn count_events(&self, channel: u32) -> Result<u32, CountError> {
+        let filter = doc! { "channel": channel, "deleted": false };
+        let count = self
+            .db
+            .collection::<Event>("events")
+            .count_documents(filter, None)
+            .await?;
+
+        Ok(count as u32)
     }
 
     async fn find_channel(&self, id: u32) -> Result<Channel, FindError> {

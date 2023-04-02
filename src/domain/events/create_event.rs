@@ -23,6 +23,8 @@ pub struct Request {
     pub channel: String,
     #[serde(skip_deserializing)]
     pub team_id: String,
+    #[serde(skip_deserializing)]
+    pub max_events: u32,
 }
 
 impl From<Request> for insert_users::Request {
@@ -53,6 +55,7 @@ pub struct Response {
 #[derive(PartialEq, Debug)]
 pub enum Error {
     BadRequest,
+    Forbidden,
     Conflict,
     Unknown,
 }
@@ -90,6 +93,9 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
             })
         }
     };
+    
+    validate_channels_count(repo.clone(), channel.id, req.max_events).await?;
+
     match repo
         .clone()
         .find_event_by_name(req.name.clone(), channel.id)
@@ -140,4 +146,16 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
             InsertError::Unknown => Error::Unknown,
         }),
     }
+}
+
+async fn validate_channels_count(repo: Arc<dyn Repository>, channel: u32, max_events: u32) -> Result<(), Error> {
+    let count = repo.count_events(channel).await.map_err(|err| {
+        log::error!("counting events for channel {} failed: {:?}", channel, err);
+        Error::Unknown
+    })?;
+    if count == max_events {
+        log::trace!("could not add more events on channel {}: max channels {} reached", channel, max_events);
+        return Err(Error::Forbidden)
+    }
+    Ok(())
 }

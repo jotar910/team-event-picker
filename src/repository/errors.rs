@@ -80,3 +80,17 @@ impl From<mongodb::error::Error> for DeleteError {
         }
     }
 }
+
+#[derive(Debug, PartialEq)]
+pub enum CountError {
+    Unknown,
+}
+
+impl From<mongodb::error::Error> for CountError {
+    fn from(value: mongodb::error::Error) -> Self {
+        log::error!("occurred an error in mongodb: {}", value);
+        match value.kind {
+            _ => Self::Unknown,
+        }
+    }
+}

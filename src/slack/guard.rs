@@ -144,7 +144,7 @@ impl Guard {
 
         let base_str = format!("v0:{}:{}", timestamp, self.body);
 
-        let expected_signature = calculate_signature(&base_str, &self.state.secret);
+        let expected_signature = calculate_signature(&base_str, &self.state.configs.secret);
 
         let received_signature: String = self
             .headers

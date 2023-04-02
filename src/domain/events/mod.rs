@@ -1,4 +1,5 @@
 pub mod create_event;
+pub mod count_events;
 pub mod delete_event;
 pub mod delete_participants;
 pub mod find_all_channels;

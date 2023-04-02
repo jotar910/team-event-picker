@@ -5,7 +5,7 @@ use crate::{
     domain::events::{find_all_events_and_dates, pick_auto_participants},
     repository,
     scheduler::{entities::EventSchedule, Scheduler},
-    slack::sender,
+    slack::{sender, state::AppConfigs},
 };
 
 use axum::{middleware, Extension, Router, Server};
@@ -65,9 +65,12 @@ pub async fn serve(config: Config) -> Result<()> {
         log::info!("Listening on port {}", config.port);
 
         let state = Arc::new(super::AppState {
-            secret: app_config.signature,
-            client_id: app_config.client_id,
-            client_secret: app_config.client_secret,
+            configs: Arc::new(AppConfigs {
+                secret: app_config.signature,
+                client_id: app_config.client_id,
+                client_secret: app_config.client_secret,
+                max_events: app_config.max_events,
+            }),
             event_repo: app_event_repo,
             auth_repo: app_auth_repo,
             scheduler: app_scheduler,

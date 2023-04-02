@@ -112,8 +112,8 @@ pub async fn execute(
     }
 
     let request_body = serde_urlencoded::to_string(&OAuthAccessRequest {
-        client_id: state.client_id.clone(),
-        client_secret: state.client_secret.clone(),
+        client_id: state.configs.client_id.clone(),
+        client_secret: state.configs.client_secret.clone(),
         code: query.code.unwrap(),
     })
     .map_err(|err| {
