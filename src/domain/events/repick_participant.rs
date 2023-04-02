@@ -84,13 +84,15 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         return Err(Error::Empty);
     }
 
-    repo.clone()
-        .rev_pick(event.id, channel.id)
-        .await
-        .map_err(|error| match error {
-            UpdateError::NotFound => Error::NotFound,
-            UpdateError::Conflict | UpdateError::Unknown => Error::Unknown,
-        })?;
+    if event.cur_pick & (event.cur_pick + 1) > 0 {
+        repo.clone()
+            .rev_pick(event.id, channel.id)
+            .await
+            .map_err(|error| match error {
+                UpdateError::NotFound => Error::NotFound,
+                UpdateError::Conflict | UpdateError::Unknown => Error::Unknown,
+            })?;
+    }
 
     Ok(pick_participant::execute(repo, req.into()).await?.into())
 }
