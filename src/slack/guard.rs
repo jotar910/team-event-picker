@@ -120,6 +120,14 @@ impl Guard {
     }
 
     async fn validate_signature(&self) -> Result<(), StatusCode> {
+        let slack_request_timestamp = self.headers.get("x-slack-request-timestamp");
+        let slack_signature = self.headers.get("x-slack-signature");
+        log::debug!(
+            "verifying signature: x-slack-request-timestamp={:?},x-slack-signature={:?}",
+            slack_request_timestamp,
+            slack_signature
+        );
+
         if !self.headers.contains_key("x-slack-request-timestamp")
             || !self.headers.contains_key("x-slack-signature")
         {
