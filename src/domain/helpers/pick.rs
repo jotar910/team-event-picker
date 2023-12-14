@@ -31,6 +31,72 @@ pub fn pick(event: &Event) -> (EventPick, u32) {
             prev_pick: pick,
             cur_pick: new_pick,
         },
-        event.participants[new_pick_idx],
+        event.participants[total_participants - new_pick_idx - 1],
     )
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::hash_set;
+
+    use crate::domain::{entities::RepeatPeriod, timezone::Timezone};
+
+    use super::*;
+
+    #[test]
+    fn pick_concontrol() {
+        let event = Event {
+            id: 89,
+            name: String::from("[Alpha] Daily"),
+            timestamp: 1701248400,
+            timezone: Timezone::UTC,
+            repeat: RepeatPeriod::Daily,
+            participants: vec![1, 12, 5, 10, 11, 14, 218, 216, 375, 217, 376, 377, 6],
+            channel: 1,
+            prev_pick: 6014,
+            cur_pick: 6015,
+            team_id: String::from("CONT"),
+            deleted: false,
+        };
+
+        let (e, i) = pick(&event);
+        assert!(e.cur_pick == 6143 || e.cur_pick == 8063);
+        if e.cur_pick == 6143 {
+            assert!(e.cur_pick & (1 << 11) == 0);
+            assert!(i == 14);
+        } else {
+            assert!(e.cur_pick & (1 << 7) == 0);
+            assert!(i == 12);
+        }
+    }
+
+    #[test]
+    fn pick_concontrol_fully() {
+        let mut event = Event {
+            id: 89,
+            name: String::from("[Alpha] Daily"),
+            timestamp: 1701248400,
+            timezone: Timezone::UTC,
+            repeat: RepeatPeriod::Daily,
+            participants: vec![1, 12, 5, 10, 11, 14, 218, 216, 375, 217, 376, 377, 6],
+            channel: 1,
+            prev_pick: 0,
+            cur_pick: 0,
+            team_id: String::from("CONT"),
+            deleted: false,
+        };
+        let mut picked = hash_set::HashSet::<u32>::new();
+        loop {
+            let (e, i) = pick(&event);
+            if e.cur_pick == 8191 {
+                break;
+            }
+            event.cur_pick = e.cur_pick;
+            event.prev_pick = e.prev_pick;
+            assert!(e.cur_pick > 0);
+            assert!(!picked.contains(&i));
+            picked.insert(i);
+        }
+        assert!(true);
+    }
 }

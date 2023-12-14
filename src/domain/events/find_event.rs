@@ -73,6 +73,7 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
             })?,
         picked: participants
             .into_iter()
+            .rev()
             .enumerate()
             .filter(|(i, _)| event.cur_pick & (1 << i) > 0)
             .map(|(_, participant)| participant)
