@@ -70,6 +70,7 @@ pub async fn serve(config: Config) -> Result<()> {
 
         let state = Arc::new(super::AppState {
             configs: Arc::new(AppConfigs {
+                app_id: app_config.app_id,
                 secret: app_config.signature,
                 client_id: app_config.client_id,
                 client_secret: app_config.client_secret,

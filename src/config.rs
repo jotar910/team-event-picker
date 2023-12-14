@@ -21,6 +21,10 @@ pub struct Config {
     #[clap(long, env)]
     pub signature: String,
 
+    /// The app id registered for the app slack.
+    #[clap(long, env)]
+    pub app_id: String,
+
     /// The client id registered for the app slack.
     #[clap(long, env)]
     pub client_id: String,

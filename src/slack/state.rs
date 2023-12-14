@@ -12,6 +12,7 @@ pub struct AppState {
 
 
 pub struct AppConfigs {
+    pub app_id: String,
     pub secret: String,
     pub client_id: String,
     pub client_secret: String,

@@ -1,6 +1,9 @@
 use std::{collections::HashSet, fmt::Display, sync::Arc};
 
-use axum::extract::{Query, State};
+use axum::{
+    extract::{Query, State},
+    response::Redirect,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{domain::auth::save_auth, slack::helpers};
@@ -76,14 +79,7 @@ impl TryFrom<OAuthAccessRawResponse> for OAuthAccessResponse {
                 }
                 let scopes: HashSet<String> =
                     response.scope.split(",").map(|v| v.to_string()).collect();
-                for scope in vec![
-                    "commands",
-                    "incoming-webhook",
-                    "channels:join",
-                    "chat:write",
-                ]
-                .into_iter()
-                {
+                for scope in vec!["commands", "channels:join", "chat:write"].into_iter() {
                     if !scopes.contains(scope) {
                         log::error!("oauth access does not contain scope {}", scope);
                         return Err(Self::Error::FORBIDDEN);
@@ -102,7 +98,7 @@ impl TryFrom<OAuthAccessRawResponse> for OAuthAccessResponse {
 pub async fn execute(
     State(state): State<Arc<AppState>>,
     Query(query): Query<OAuthQuery>,
-) -> Result<(), hyper::StatusCode> {
+) -> Result<Redirect, hyper::StatusCode> {
     log::trace!("received oauth authorization: {}", query);
 
     if let Some(..) = query.error {
@@ -154,5 +150,8 @@ pub async fn execute(
         response.access_token
     );
 
-    Ok(())
+    Ok(Redirect::to(&format!(
+        "https://slack.com/app_redirect?app={}",
+        state.configs.app_id
+    )))
 }
