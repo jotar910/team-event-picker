@@ -43,6 +43,7 @@ WORKDIR /app
 
 # copy the build artifact from the build stage
 COPY --from=builder /team-event-picker/target/release/team-event-picker /app
-COPY ./.env /app
+COPY --from=builder /team-event-picker/src/assets /app/src/assets
+COPY ./.env /app/.env
 
 CMD ["/app/team-event-picker"]
