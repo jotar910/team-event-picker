@@ -1,19 +1,29 @@
-# generate a recipe file for dependencies
-FROM rust as planner
-WORKDIR /app
-RUN cargo install cargo-chef
-COPY . .
-RUN cargo chef prepare --recipe-path recipe.json
-
-# build our dependencies
-FROM rust as cacher
-WORKDIR /app
-RUN cargo install cargo-chef
-COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
-
 # use the main official rust docker image as our builder
-FROM rust:slim as builder
+FROM amd64/rust as builder
+
+# create a new empty shell project
+RUN USER=root cargo new --bin team-event-picker
+WORKDIR /team-event-picker
+
+# copy over your manifests
+COPY ./Cargo.lock ./Cargo.lock
+COPY ./Cargo.toml ./Cargo.toml
+
+# this build step will cache your dependencies
+RUN cargo build --release
+RUN rm src/*.rs
+
+# copy your source tree
+COPY ./src ./src
+
+# build for release
+RUN rm ./target/release/deps/team_event_picker*
+RUN cargo build --release
+
+# CMD ["/team-event-picker/target/release/team-event-picker"]
+
+# our final base
+FROM debian:bullseye-slim AS runtime
 
 ENV USER=web
 ENV UID=1001
@@ -26,20 +36,13 @@ RUN adduser \
     --uid "${UID}" \
     "${USER}"
 
-COPY . /app
-WORKDIR /app
-COPY --from=cacher /app/target target
-COPY --from=cacher /usr/local/cargo /usr/local/cargo
-RUN cargo build --release
-
-# FROM rust:alpine as runner
-
-# COPY --from=builder /etc/passwd /etc/passwd
-# COPY --from=builder /etc/group /etc/group
-
-# WORKDIR /app
-# COPY --from=builder /app /app
-
 USER web
 
-CMD ["/app/target/release/team-event-picker"]
+WORKDIR /app
+
+# copy the build artifact from the build stage
+COPY --from=builder /team-event-picker/target/release/team-event-picker /app
+COPY --from=builder /team-event-picker/src/assets /app/src/assets
+COPY ./.env /app/.env
+
+CMD ["/app/team-event-picker"]
