@@ -112,6 +112,10 @@ pub async fn serve(config: Config) -> Result<()> {
     match find_all_events_and_dates::execute(event_repo).await {
         Ok(events) => {
             for event in events.data.into_iter() {
+                if event.id <= 135 {
+                    continue; //TODO: remove, only used to avoid duplications while migrating to
+                              //Railway.
+                }
                 scheduler
                     .insert(EventSchedule {
                         id: event.id,
