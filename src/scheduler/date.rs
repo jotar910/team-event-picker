@@ -4,8 +4,7 @@ use std::{
 };
 
 use chrono::{
-    DateTime, Datelike, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, TimeZone, Utc,
-    Weekday,
+    DateTime, Datelike, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, TimeZone, Timelike, Utc, Weekday
 };
 
 use crate::domain::{entities::RepeatPeriod, timezone::Timezone};
@@ -112,9 +111,13 @@ impl Date {
         frequency: RepeatPeriod,
         utils: Box<dyn DateUtils>,
     ) -> Self {
-        let time = DateTime::<Local>::from_local(
-            NaiveDateTime::from_timestamp_opt(timestamp, 0).unwrap_or(NaiveDateTime::default()),
-            FixedOffset::east_opt(timezone.clone().into()).unwrap(),
+        let time = DateTime::<Local>::from_naive_utc_and_offset(
+            DateTime::from_timestamp(timestamp, 0)
+                .map(|datetime| datetime.naive_local())
+                .unwrap_or(NaiveDateTime::default())
+                .with_second(0)
+                .unwrap(),
+            FixedOffset::east_opt(Timezone::from(timezone.clone()).into()).unwrap(),
         )
         .with_timezone(&Utc);
         Self {
@@ -164,7 +167,7 @@ impl Date {
         let mut position_time = time;
         let mut minutes = vec![];
         while position_time.0 < year_end.0 {
-            let position_date = NaiveDateTime::from_timestamp_millis(position_time.0).unwrap();
+            let position_date = DateTime::from_timestamp_millis(position_time.0).unwrap();
             let position_weekday = position_date.weekday();
             if interval != 1
                 || (position_weekday != Weekday::Sat && position_weekday != Weekday::Sun)
@@ -172,7 +175,7 @@ impl Date {
                 let position = Milliseconds::from_timestamp(
                     self.timezone
                         .tz()
-                        .from_local_datetime(&position_date)
+                        .from_local_datetime(&position_date.naive_local())
                         .unwrap()
                         .timestamp(),
                 ) - year_start;
@@ -196,6 +199,7 @@ impl Date {
                 .unwrap()
                 .and_hms_milli_opt(0, 0, 0, 0)
                 .unwrap()
+                .and_utc()
                 .timestamp(),
         );
 
@@ -223,7 +227,7 @@ impl Date {
             }
 
             let millis =
-                Milliseconds::from_timestamp(target_day.and_time(self.time.time()).timestamp())
+                Milliseconds::from_timestamp(target_day.and_time(self.time.time()).and_utc().timestamp())
                     - year_start;
             let minute = Minutes::from(millis);
             minutes.push(minute.0);

@@ -131,8 +131,9 @@ pub fn to_response_error(value: &str) -> Result<String, hyper::StatusCode> {
 }
 
 pub fn fmt_timestamp(timestamp: i64, timezone: Timezone) -> String {
-    DateTime::<Local>::from_local(
-        NaiveDateTime::from_timestamp_opt(timestamp, 0)
+    DateTime::<Local>::from_naive_utc_and_offset(
+        DateTime::from_timestamp(timestamp, 0)
+            .map(|datetime| datetime.naive_local())
             .unwrap_or(NaiveDateTime::default())
             .with_second(0)
             .unwrap(),

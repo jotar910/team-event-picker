@@ -1,43 +1,43 @@
 [package]
 name = "team-event-picker"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread", "sync", "tracing"] }
-axum = { version = "0.6.4", features = ["macros"] }
+tokio = { version = "1.38.0", features = ["macros", "rt-multi-thread", "sync", "tracing"] }
+axum = { version = "0.6.20", features = ["macros"] }
 hyper = { version = "0.14", features = ["full"] }
 hyper-tls = "0.5.0"
 
 # Axum builds on the types in Tower
-tower = "0.4.11"
+tower = "0.4.13"
 tower-http = { version = "0.3.5", features = ["trace"] }
 
-clap = { version = "4.1.4", features = ["derive", "env"] }
-serde = { version = "1.0.152", features = ["derive"] }
-serde_json = "1.0.93"
+clap = { version = "4.5.7", features = ["derive", "env"] }
+serde = { version = "1.0.203", features = ["derive"] }
+serde_json = "1.0.117"
 serde_trim = "0.4.0"
 serde_urlencoded = "0.7.1"
-bson = "2.5.0"
-handlebars = "4.3.6"
+bson = "2.11.0"
+handlebars = "4.5.0"
 
 # Database dependencies
-mongodb = "2.3.1"
+mongodb = "2.8.2"
 
 # Utility crates
-anyhow = "1.0.68"
+anyhow = "1.0.86"
 dotenv = "0.15.0"
-env_logger = "0.10.0"
-log = "0.4.17"
+env_logger = "0.10.2"
+log = "0.4.21"
 itertools = "0.10.5"
 rand = "0.8.5"
-async-trait = "0.1.64"
-chrono = "0.4.23"
+async-trait = "0.1.80"
+chrono = "0.4.38"
 hmac = "0.12.1"
-sha2 = "0.10.6"
+sha2 = "0.10.8"
 hex = "0.4.3"
-futures = "0.3.27"
-chrono-tz = "0.8.1"
+futures = "0.3.30"
+chrono-tz = "0.8.6"
 # console-subscriber = "0.1.8"

@@ -1,3 +1,5 @@
 /target
 docker-compose-local.yml
 .env.local
+.env
+.idea/

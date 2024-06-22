@@ -28,5 +28,6 @@ pub fn find_first_day_of_year_timestamp(year: i32) -> i64 {
         .unwrap()
         .and_hms_milli_opt(0, 0, 0, 0)
         .unwrap()
+        .and_utc()
         .timestamp()
 }
