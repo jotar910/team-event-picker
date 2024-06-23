@@ -5,15 +5,14 @@ use tokio::{
     task::yield_now,
 };
 
-use super::{date::Date, entities::EventSchedule, helpers};
+use super::{date::SchedulerDate, entities::EventSchedule, helpers};
 use crate::{
-    domain::events::pick_auto_participants,
-    repository::{auth, event},
+    domain::events::pick_auto_participants, helpers::date::Date, repository::{auth, event}
 };
 
 struct DateRecords {
     events_per_minute: HashMap<i64, Vec<u32>>,
-    saved_events_date: HashMap<u32, Date>,
+    saved_events_date: HashMap<u32, SchedulerDate>,
 }
 
 impl DateRecords {
@@ -68,10 +67,11 @@ impl DateRecords {
             self.clear_event(event.id);
         }
 
-        let date = Date::new(event.timestamp, event.timezone, event.repeat);
+        let date = SchedulerDate::new(event.timestamp, event.timezone.clone(), event.repeat);
         self.set_event_minutes(event.id, &date);
         self.saved_events_date.insert(event.id, date);
-        log::debug!("added event to scheduler: {}", event.id);
+        let date_str = Date::new(event.timestamp).with_timezone(event.timezone).to_string();
+        log::debug!("added event to scheduler: {} at {} ({} secs)", event.id, date_str, event.timestamp);
     }
 
     fn remove(&mut self, event_id: u32) {
@@ -86,7 +86,7 @@ impl DateRecords {
     fn reset_minutes(&mut self) {
         self.events_per_minute = HashMap::new();
 
-        let mut saved_events_date: HashMap<u32, Date> = HashMap::new();
+        let mut saved_events_date: HashMap<u32, SchedulerDate> = HashMap::new();
         for (&event_id, date) in self.saved_events_date.iter() {
             saved_events_date.insert(event_id, date.clone());
         }
