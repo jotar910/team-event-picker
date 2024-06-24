@@ -1858,6 +1858,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "slack-blocks"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fd18b936dc0a7717f7067adf4395faa138ab7bec355d26f6192edd8aa92d5b0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1986,6 +1995,7 @@ dependencies = [
  "serde_trim",
  "serde_urlencoded",
  "sha2",
+ "slack-blocks",
  "tokio",
  "tower",
  "tower-http",

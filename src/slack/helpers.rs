@@ -4,7 +4,7 @@ use hyper::{Body, HeaderMap, Request};
 use hyper_tls::HttpsConnector;
 use serde_json::json;
 
-use crate::domain::timezone::Timezone;
+use crate::{domain::timezone::Timezone, helpers::date::Date};
 
 pub fn render_template(
     template: &str,
@@ -131,15 +131,7 @@ pub fn to_response_error(value: &str) -> Result<String, hyper::StatusCode> {
 }
 
 pub fn fmt_timestamp(timestamp: i64, timezone: Timezone) -> String {
-    DateTime::<Local>::from_naive_utc_and_offset(
-        DateTime::from_timestamp(timestamp, 0)
-            .map(|datetime| datetime.naive_local())
-            .unwrap_or(NaiveDateTime::default())
-            .with_second(0)
-            .unwrap(),
-        FixedOffset::east_opt(Timezone::from(timezone).into()).unwrap(),
-    )
-    .to_string()
+    Date::new(timestamp).with_timezone(timezone).to_string()
 }
 
 async fn response_to_string(res: Body) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {

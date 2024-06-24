@@ -338,6 +338,7 @@ pub async fn execute(
 
     for action in payload.actions.iter() {
         if let None = action.block_id {
+            log::trace!("block id not provided on action");
             continue;
         }
         let result = match action.block_id.as_deref().unwrap() {
@@ -438,14 +439,14 @@ async fn handle_add_event(
         return handle_close(&command_action.response_url).await;
     }
 
-    let request: create_event::Request = match AddEventData::new(command_action.clone(), configs.max_events).try_into()
-    {
-        Ok(data) => data,
-        Err(err) => {
-            log::trace!("error parsing data to create event request: {}", err);
-            return Err(hyper::StatusCode::BAD_REQUEST);
-        }
-    };
+    let request: create_event::Request =
+        match AddEventData::new(command_action.clone(), configs.max_events).try_into() {
+            Ok(data) => data,
+            Err(err) => {
+                log::trace!("error parsing data to create event request: {}", err);
+                return Err(hyper::StatusCode::BAD_REQUEST);
+            }
+        };
     let response = match create_event::execute(repo.clone(), request).await {
         Ok(res) => res,
         Err(create_event::Error::BadRequest) => return Err(hyper::StatusCode::BAD_REQUEST),
@@ -714,7 +715,10 @@ async fn handle_list_event(
         Some(value) if value == "add_event" => {
             handle_create_event(&command_action.response_url).await
         }
-        _ => return Err(hyper::StatusCode::BAD_REQUEST),
+        _ => {
+            log::debug!("unknown action value for list event: {:?}", action.value);
+            return Err(hyper::StatusCode::BAD_REQUEST);
+        }
     }
 }
 

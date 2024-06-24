@@ -1,6 +1,6 @@
-mod helpers;
+pub mod helpers; // <--- Temporarily public
 mod state;
-mod templates;
+pub mod templates; // <--- Temporarily public
 
 mod actions;
 mod commands;

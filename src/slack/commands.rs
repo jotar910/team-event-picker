@@ -6,7 +6,10 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::{
-    domain::events::{pick_participant, repick_participant},
+    domain::{
+        commands,
+        events::{pick_participant, repick_participant},
+    },
     repository::event::Repository,
 };
 
@@ -127,7 +130,9 @@ async fn handle_list(
     channel: String,
     reached_limit: bool,
 ) -> Result<String, hyper::StatusCode> {
-    Ok(templates::list_events(repo, channel, reached_limit).await?)
+    Ok(commands::list_events::execute(repo, channel, reached_limit)
+        .await?
+        .to_string())
 }
 
 fn handle_create() -> Result<String, hyper::StatusCode> {
