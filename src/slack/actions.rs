@@ -325,7 +325,11 @@ pub async fn execute(
     Form(payload): Form<CommandActionBody>,
 ) -> Result<(), hyper::StatusCode> {
     let body = serde_urlencoded::to_string(&payload).unwrap();
-    log::trace!("received action: \n{:?} \n{}", headers, body);
+    log::trace!(
+        "received action: \n{:?} \n{:?}",
+        headers,
+        serde_json::from_str(&body).unwrap_or("invalid json")
+    );
 
     let token = super::find_token(&headers)?;
 

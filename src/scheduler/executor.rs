@@ -7,7 +7,9 @@ use tokio::{
 
 use super::{date::SchedulerDate, entities::EventSchedule, helpers};
 use crate::{
-    domain::events::pick_auto_participants, helpers::date::Date, repository::{auth, event}
+    domain::events::pick_auto_participants,
+    helpers::date::Date,
+    repository::{auth, event},
 };
 
 struct DateRecords {
@@ -70,8 +72,15 @@ impl DateRecords {
         let date = SchedulerDate::new(event.timestamp, event.timezone.clone(), event.repeat);
         self.set_event_minutes(event.id, &date);
         self.saved_events_date.insert(event.id, date);
-        let date_str = Date::new(event.timestamp).with_timezone(event.timezone).to_string();
-        log::debug!("added event to scheduler: {} at {} ({} secs)", event.id, date_str, event.timestamp);
+        let date_str = Date::new(event.timestamp)
+            .with_timezone(event.timezone)
+            .to_string();
+        log::debug!(
+            "added event to scheduler: {} at {} ({} secs)",
+            event.id,
+            date_str,
+            event.timestamp
+        );
     }
 
     fn remove(&mut self, event_id: u32) {
@@ -95,8 +104,18 @@ impl DateRecords {
         }
     }
 
-    fn set_event_minutes(&mut self, event_id: u32, date: &Date) {
-        for minute in date.find_minutes().iter() {
+    fn set_event_minutes(&mut self, event_id: u32, date: &SchedulerDate) {
+        let minutes = date.find_minutes();
+        log::debug!(
+            "calculated minutes for the event {}: {}",
+            event_id,
+            minutes
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<String>>()
+                .join("|")
+        );
+        for minute in minutes.iter() {
             match self.events_per_minute.get_mut(&minute) {
                 Some(events_per_minute) => {
                     events_per_minute.push(event_id);

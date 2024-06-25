@@ -1,14 +1,18 @@
 use std::sync::Arc;
 
-use axum::{extract::State, Json};
+use axum::{
+    extract::State,
+    response::{IntoResponse, Response},
+    Json,
+};
 use hyper::HeaderMap;
 use serde::Deserialize;
 use serde_json::Value;
 
 use crate::{
     domain::{
-        commands,
-        events::{pick_participant, repick_participant},
+        commands::{self, pick_participant},
+        events::repick_participant,
     },
     repository::event::Repository,
 };
@@ -21,13 +25,14 @@ pub struct CommandRequest {
     pub channel_id: String,
     pub text: String,
     pub response_url: String,
+    pub user_id: String,
 }
 
 pub async fn execute(
     headers: HeaderMap,
     State(state): State<Arc<AppState>>,
     body: String,
-) -> Result<Json<Value>, hyper::StatusCode> {
+) -> Result<Response, hyper::StatusCode> {
     log::trace!("received command: \n{:?} \n{}", headers, body);
 
     let payload = serde_urlencoded::from_str::<CommandRequest>(&body).unwrap();
@@ -68,6 +73,7 @@ pub async fn execute(
                 state.event_repo.clone(),
                 payload.response_url.clone(),
                 payload.channel_id,
+                payload.user_id,
                 &args[space_idx..].trim(),
             )
             .await
@@ -116,8 +122,15 @@ pub async fn execute(
         }
     };
 
-    match serde_json::from_str(&result) {
-        Ok(result) => Ok(Json(result)),
+    if result.is_empty() {
+        return Ok((()).into_response());
+    }
+
+    match serde_json::from_str::<Value>(&result) {
+        Ok(result) => {
+            log::debug!("command response: {:?}", result);
+            Ok(Json(result).into_response())
+        }
         Err(err) => {
             log::error!("unable to send slack response: {}", err);
             Err(hyper::StatusCode::INTERNAL_SERVER_ERROR)
@@ -191,6 +204,7 @@ async fn handle_pick(
     repo: Arc<dyn Repository>,
     response_url: String,
     channel: String,
+    user: String,
     args: &str,
 ) -> Result<String, hyper::StatusCode> {
     if args.len() == 0 {
@@ -202,36 +216,11 @@ async fn handle_pick(
         Err(..) => return Err(hyper::StatusCode::BAD_REQUEST),
     };
 
-    let participant = match pick_participant::execute(
-        repo.clone(),
-        pick_participant::Request {
-            event: id,
-            channel: channel.clone(),
-        },
-    )
-    .await
-    {
-        Ok(response) => response,
-        Err(err) => {
-            return Err(match err {
-                pick_participant::Error::Empty => hyper::StatusCode::NOT_ACCEPTABLE,
-                pick_participant::Error::NotFound => hyper::StatusCode::NOT_FOUND,
-                pick_participant::Error::Unknown => hyper::StatusCode::INTERNAL_SERVER_ERROR,
-            })
-        }
-    };
+    let response = pick_participant::execute(repo.clone(), id, channel, user, response_url)
+        .await?
+        .map_or(String::from(""), |r| r.to_string());
 
-    log::trace!("picked new participant: {:?}", participant);
-
-    let result = templates::pick(repo, channel, id, participant.into(), true).await?;
-    super::send_post(&response_url, hyper::Body::from(result))
-        .await
-        .map_err(|err| {
-            log::error!("unable to send slack response: {}", err);
-            hyper::StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    Ok(templates::repick(id)?)
+    return Ok(response);
 }
 
 async fn handle_repick(

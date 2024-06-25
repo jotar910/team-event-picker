@@ -1,4 +1,3 @@
-use chrono::{DateTime, FixedOffset, Local, NaiveDateTime, Timelike};
 use handlebars::Handlebars;
 use hyper::{Body, HeaderMap, Request};
 use hyper_tls::HttpsConnector;
