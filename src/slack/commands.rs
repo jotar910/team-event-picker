@@ -11,8 +11,8 @@ use serde_json::Value;
 
 use crate::{
     domain::{
+        commands::repick_participant,
         commands::{self, pick_participant},
-        events::repick_participant,
     },
     repository::event::Repository,
 };
@@ -83,6 +83,7 @@ pub async fn execute(
                 state.event_repo.clone(),
                 payload.response_url.clone(),
                 payload.channel_id,
+                payload.user_id,
                 &args[space_idx..].trim(),
             )
             .await
@@ -227,6 +228,7 @@ async fn handle_repick(
     repo: Arc<dyn Repository>,
     response_url: String,
     channel: String,
+    user: String,
     args: &str,
 ) -> Result<String, hyper::StatusCode> {
     let id: u32 = match args.parse() {
@@ -234,36 +236,11 @@ async fn handle_repick(
         Err(..) => return Err(hyper::StatusCode::BAD_REQUEST),
     };
 
-    let participant = match repick_participant::execute(
-        repo.clone(),
-        repick_participant::Request {
-            event: id,
-            channel: channel.clone(),
-        },
-    )
-    .await
-    {
-        Ok(response) => response,
-        Err(err) => {
-            return Err(match err {
-                repick_participant::Error::Empty => hyper::StatusCode::NOT_ACCEPTABLE,
-                repick_participant::Error::NotFound => hyper::StatusCode::NOT_FOUND,
-                repick_participant::Error::Unknown => hyper::StatusCode::INTERNAL_SERVER_ERROR,
-            })
-        }
-    };
+    let response = repick_participant::execute(repo.clone(), id, channel, user, response_url)
+        .await?
+        .map_or(String::from(""), |r| r.to_string());
 
-    log::trace!("picked new participant: {:?}", participant);
-
-    let result = templates::pick(repo, channel, id, participant.into(), true).await?;
-    super::send_post(&response_url, hyper::Body::from(result))
-        .await
-        .map_err(|err| {
-            log::error!("unable to send slack response: {}", err);
-            hyper::StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    Ok(templates::repick(id)?)
+    return Ok(response);
 }
 
 fn handle_help(args: &str) -> Result<String, hyper::StatusCode> {

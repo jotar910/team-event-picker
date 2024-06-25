@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::domain::entities::User;
 use crate::domain::events::pick_participant;
+use crate::domain::helpers;
 use crate::repository::errors::{FindError, UpdateError};
 use crate::repository::event::Repository;
 
@@ -25,8 +26,8 @@ pub struct Response {
     pub name: String,
 }
 
-impl From<pick_participant::Response> for Response {
-    fn from(value: pick_participant::Response) -> Self {
+impl From<User> for Response {
+    fn from(value: User) -> Self {
         Self {
             id: value.id,
             name: value.name,
@@ -84,15 +85,18 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         return Err(Error::Empty);
     }
 
-    if event.cur_pick & (event.cur_pick + 1) > 0 {
-        repo.clone()
-            .rev_pick(event.id, channel.id)
-            .await
-            .map_err(|error| match error {
-                UpdateError::NotFound => Error::NotFound,
-                UpdateError::Conflict | UpdateError::Unknown => Error::Unknown,
-            })?;
-    }
+    let (pick, participant) = helpers::repick(&event);
+    repo.save_pick(pick).await.map_err(|error| match error {
+        UpdateError::NotFound => Error::NotFound,
+        UpdateError::Conflict | UpdateError::Unknown => Error::Unknown,
+    })?;
 
-    Ok(pick_participant::execute(repo, req.into()).await?.into())
+    Ok(repo
+        .find_user(participant)
+        .await
+        .map_err(|error| match error {
+            FindError::NotFound => Error::NotFound,
+            FindError::Unknown => Error::Unknown,
+        })?
+        .into())
 }

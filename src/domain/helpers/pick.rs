@@ -3,13 +3,23 @@ use rand::Rng;
 use crate::domain::entities::{Event, EventPick};
 
 pub fn pick(event: &Event) -> (EventPick, u32) {
-    let pick = event.cur_pick;
+    return pick_participant(event, event.cur_pick, event.cur_pick);
+}
+
+pub fn repick(event: &Event) -> (EventPick, u32) {
+    if event.cur_pick.count_ones() < event.participants.len() as u32 {
+        return pick_participant(event, event.cur_pick, event.prev_pick);
+    }
+    return pick_participant(event, event.prev_pick, event.prev_pick);
+}
+
+fn pick_participant(event: &Event, pick_to_include: u32, pick_to_update: u32) -> (EventPick, u32) {
     let total_participants = event.participants.len();
 
     let mut not_picked: Vec<usize> = vec![];
 
     for i in 0..event.participants.len() {
-        if pick & (1 << i) == 0 {
+        if pick_to_include & (1 << i) == 0 {
             not_picked.push(i);
         }
     }
@@ -22,13 +32,13 @@ pub fn pick(event: &Event) -> (EventPick, u32) {
         new_pick = 1 << new_pick_idx;
     } else {
         new_pick_idx = not_picked[rand::thread_rng().gen_range(0..not_picked.len())];
-        new_pick = pick | (1 << new_pick_idx);
+        new_pick = pick_to_update | (1 << new_pick_idx);
     }
 
     (
         EventPick {
             event: event.id,
-            prev_pick: pick,
+            prev_pick: pick_to_update,
             cur_pick: new_pick,
         },
         event.participants[total_participants - new_pick_idx - 1],
