@@ -3,19 +3,19 @@ use std::{collections::HashMap, sync::Arc};
 use axum::extract::{Form, State};
 use hyper::HeaderMap;
 use serde::{Deserialize, Serialize};
+use serde_json::from_str;
 
+use super::state::AppConfigs;
+use super::{sender, templates, AppState};
+use crate::domain::commands::cancel_pick;
 use crate::domain::entities::RepeatPeriod;
 use crate::domain::timezone::Timezone;
 use crate::scheduler::{entities::EventSchedule, Scheduler};
 use crate::{
-    domain::events::{
-        create_event, delete_event, find_event, pick_participant, repick_participant, update_event,
-    },
+    domain::commands::{pick_participant, repick_participant},
+    domain::events::{create_event, delete_event, find_event, update_event},
     repository::event::Repository,
 };
-
-use super::state::AppConfigs;
-use super::{sender, templates, AppState};
 
 #[derive(Serialize, Deserialize)]
 pub struct CommandActionBody {
@@ -41,6 +41,7 @@ pub struct Channel {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct User {
+    id: String,
     team_id: String,
 }
 
@@ -328,12 +329,12 @@ pub async fn execute(
     log::trace!(
         "received action: \n{:?} \n{:?}",
         headers,
-        serde_json::from_str(&body).unwrap_or("invalid json")
+        from_str(&body).unwrap_or(body)
     );
 
     let token = super::find_token(&headers)?;
 
-    let payload: CommandAction = serde_json::from_str(&payload.payload).unwrap();
+    let payload: CommandAction = from_str(&payload.payload).unwrap();
 
     if payload.request_type != "block_actions" {
         log::trace!("unknown action type: {}", payload.request_type);
@@ -341,6 +342,16 @@ pub async fn execute(
     }
 
     for action in payload.actions.iter() {
+        if let Some(action_id) = action.action_id.as_deref() {
+            if action_id.starts_with("pick_participant_actions:") {
+                return handle_pick_participant_event(state.event_repo.clone(), action, &payload)
+                    .await;
+            }
+            if action_id.starts_with("cancel_pick_actions:") {
+                return handle_cancel_pick_event(state.event_repo.clone(), action, &payload)
+                    .await;
+            }
+        }
         if let None = action.block_id {
             log::trace!("block id not provided on action");
             continue;
@@ -408,6 +419,7 @@ pub async fn execute(
                             state.event_repo.clone(),
                             payload.response_url,
                             payload.channel.id,
+                            payload.user.id,
                             id,
                         )
                         .await
@@ -705,6 +717,7 @@ async fn handle_pick_select_event(
         repo,
         command_action.response_url.clone(),
         command_action.channel.id.clone(),
+        command_action.user.id.clone(),
         event_id,
     )
     .await
@@ -726,6 +739,88 @@ async fn handle_list_event(
     }
 }
 
+async fn handle_pick_participant_event(
+    repo: Arc<dyn Repository>,
+    action: &Action,
+    command_action: &CommandAction,
+) -> Result<(), hyper::StatusCode> {
+    let response_url = command_action.response_url.clone();
+    let channel = command_action.channel.id.clone();
+    let user = command_action.user.id.clone();
+    let event_id = match action.value.clone() {
+        Some(value) => match value.parse() {
+            Ok(id) => id,
+            Err(err) => {
+                log::trace!("error retrieving event id from action value: {}", err);
+                return Err(hyper::StatusCode::BAD_REQUEST);
+            }
+        },
+        None => return Err(hyper::StatusCode::BAD_REQUEST),
+    };
+    match action.action_id.clone().map(|action_id| {
+        action_id
+            .clone()
+            .trim_start_matches("pick_participant_actions:")
+            .to_string()
+    }) {
+        Some(value) if value == "pick" => {
+            handle_skip_pick_event(repo, response_url, channel, user, event_id).await
+        }
+        Some(value) if value == "repick" => {
+            handle_repick_event(repo, response_url, channel, user, event_id).await
+        }
+        Some(value) if value == "cancel" => {
+            handle_cancel_pick(repo, response_url, channel, user, event_id).await
+        }
+        _ => {
+            log::debug!(
+                "unknown action value for pick participant event: {:?}",
+                action.value
+            );
+            return Err(hyper::StatusCode::BAD_REQUEST);
+        }
+    }
+}
+
+
+
+async fn handle_cancel_pick_event(
+    repo: Arc<dyn Repository>,
+    action: &Action,
+    command_action: &CommandAction,
+) -> Result<(), hyper::StatusCode> {
+    let response_url = command_action.response_url.clone();
+    let channel = command_action.channel.id.clone();
+    let user = command_action.user.id.clone();
+    let event_id = match action.value.clone() {
+        Some(value) => match value.parse() {
+            Ok(id) => id,
+            Err(err) => {
+                log::trace!("error retrieving event id from action value: {}", err);
+                return Err(hyper::StatusCode::BAD_REQUEST);
+            }
+        },
+        None => return Err(hyper::StatusCode::BAD_REQUEST),
+    };
+    match action.action_id.clone().map(|action_id| {
+        action_id
+            .clone()
+            .trim_start_matches("cancel_pick_actions:")
+            .to_string()
+    }) {
+        Some(value) if value == "pick" => {
+            handle_pick_event(repo, response_url, channel, user, event_id).await
+        }
+        _ => {
+            log::debug!(
+                "unknown action value for cancel pick event: {:?}",
+                action.value
+            );
+            return Err(hyper::StatusCode::BAD_REQUEST);
+        }
+    }
+}
+
 async fn handle_list_item_event(
     repo: Arc<dyn Repository>,
     action: &Action,
@@ -734,6 +829,7 @@ async fn handle_list_item_event(
 ) -> Result<(), hyper::StatusCode> {
     let response_url = command_action.response_url.clone();
     let channel = command_action.channel.id.clone();
+    let user = command_action.user.id.clone();
     let selected_option = match action.selected_option.clone() {
         Some(option) => match option.value {
             Some(option) => option,
@@ -742,7 +838,7 @@ async fn handle_list_item_event(
         None => return Err(hyper::StatusCode::BAD_REQUEST),
     };
     match selected_option.as_str() {
-        "pick" => handle_pick_event(repo, response_url, channel, event_id).await,
+        "pick" => handle_pick_event(repo, response_url, channel, user, event_id).await,
         "show" => handle_show_details_event(repo, response_url, channel, event_id).await,
         "edit" => handle_edit_selected_event(repo, response_url, channel, event_id).await,
         "delete" => handle_delete_selected_event(repo, response_url, channel, event_id).await,
@@ -776,8 +872,9 @@ async fn handle_show_event(
 
     let response_url = command_action.response_url.clone();
     let channel = command_action.channel.id.clone();
+    let user = command_action.user.id.clone();
     match action_type.as_str() {
-        "pick" => handle_pick_event(repo, response_url, channel, event_id).await,
+        "pick" => handle_pick_event(repo, response_url, channel, user, event_id).await,
         "edit_event" => handle_edit_selected_event(repo, response_url, channel, event_id).await,
         "delete_event" => handle_delete_selected_event(repo, response_url, channel, event_id).await,
         _ => return Err(hyper::StatusCode::BAD_REQUEST),
@@ -817,72 +914,95 @@ async fn handle_pick_event(
     repo: Arc<dyn Repository>,
     response_url: String,
     channel: String,
+    user: String,
     event_id: u32,
 ) -> Result<(), hyper::StatusCode> {
-    let request = pick_participant::Request {
-        event: event_id,
-        channel: channel.clone(),
-    };
-    let response = match pick_participant::execute(repo.clone(), request).await {
-        Ok(response) => response,
-        Err(err) => {
-            return Err(match err {
-                pick_participant::Error::Empty => hyper::StatusCode::NOT_ACCEPTABLE,
-                pick_participant::Error::NotFound => hyper::StatusCode::NOT_FOUND,
-                pick_participant::Error::Unknown => hyper::StatusCode::INTERNAL_SERVER_ERROR,
-            })
-        }
-    };
-
-    let body = templates::pick(repo, channel, event_id, response.into(), false).await?;
-    super::send_post(&response_url, hyper::Body::from(body))
-        .await
-        .map_err(|err| {
+    if let Some(response) = pick_participant::execute(
+        repo.clone(),
+        event_id,
+        channel,
+        user,
+        response_url.clone(),
+        false,
+    )
+    .await?
+    {
+        let body = hyper::Body::from(response.to_string());
+        super::send_post(&response_url, body).await.map_err(|err| {
             log::error!("unable to send slack error response: {}", err);
             hyper::StatusCode::INTERNAL_SERVER_ERROR
         })?;
+    }
 
-    Ok(())
+    return Ok(());
+}
+
+async fn handle_skip_pick_event(
+    repo: Arc<dyn Repository>,
+    response_url: String,
+    channel: String,
+    user: String,
+    event_id: u32,
+) -> Result<(), hyper::StatusCode> {
+    if let Some(response) = pick_participant::execute(
+        repo.clone(),
+        event_id,
+        channel,
+        user,
+        response_url.clone(),
+        true,
+    )
+    .await?
+    {
+        let body = hyper::Body::from(response.to_string());
+        super::send_post(&response_url, body).await.map_err(|err| {
+            log::error!("unable to send slack error response: {}", err);
+            hyper::StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    }
+
+    return Ok(());
 }
 
 async fn handle_repick_event(
     repo: Arc<dyn Repository>,
     response_url: String,
     channel: String,
+    user: String,
     event_id: u32,
 ) -> Result<(), hyper::StatusCode> {
-    let request = repick_participant::Request {
-        event: event_id,
-        channel: channel.clone(),
-    };
-    let response = match repick_participant::execute(repo.clone(), request).await {
-        Ok(response) => response,
-        Err(err) => {
-            return Err(match err {
-                repick_participant::Error::Empty => hyper::StatusCode::NOT_ACCEPTABLE,
-                repick_participant::Error::NotFound => hyper::StatusCode::NOT_FOUND,
-                repick_participant::Error::Unknown => hyper::StatusCode::INTERNAL_SERVER_ERROR,
-            })
-        }
-    };
-
-    let body = templates::repick(event_id)?;
-    super::send_post(&response_url, hyper::Body::from(body))
-        .await
-        .map_err(|err| {
+    if let Some(response) =
+        repick_participant::execute(repo.clone(), event_id, channel, user, response_url.clone())
+            .await?
+    {
+        let body = hyper::Body::from(response.to_string());
+        super::send_post(&response_url, body).await.map_err(|err| {
             log::error!("unable to send slack error response: {}", err);
             hyper::StatusCode::INTERNAL_SERVER_ERROR
         })?;
+    }
 
-    let body = templates::pick(repo, channel, event_id, response.into(), false).await?;
-    super::send_post(&response_url, hyper::Body::from(body))
-        .await
-        .map_err(|err| {
+    return Ok(());
+}
+
+async fn handle_cancel_pick(
+    repo: Arc<dyn Repository>,
+    response_url: String,
+    channel: String,
+    user: String,
+    event_id: u32,
+) -> Result<(), hyper::StatusCode> {
+    if let Some(response) =
+        cancel_pick::execute(repo.clone(), event_id, channel, user, response_url.clone()).await?
+    {
+        let body = hyper::Body::from(response.to_string());
+        super::send_post(&response_url, body).await.map_err(|err| {
             log::error!("unable to send slack error response: {}", err);
             hyper::StatusCode::INTERNAL_SERVER_ERROR
         })?;
+    }
 
-    Ok(())
+    return Ok(());
 }
 
 async fn handle_create_event(response_url: &str) -> Result<(), hyper::StatusCode> {

@@ -6,16 +6,22 @@ use crate::domain::timezone::Timezone;
 #[derive(Clone)]
 pub struct Date {
     timestamp: i64,
-    timezone: Timezone
+    timezone: Timezone,
 }
 
 impl Date {
     pub fn new(timestamp: i64) -> Self {
-        return Self { timestamp, timezone: Timezone::UTC };
+        return Self {
+            timestamp,
+            timezone: Timezone::UTC,
+        };
     }
 
     pub fn with_timezone(self: &Self, timezone: Timezone) -> Self {
-        return Self {timestamp: self.timestamp, timezone};
+        return Self {
+            timestamp: self.timestamp,
+            timezone,
+        };
     }
 
     pub fn timestamp(self: &Self) -> i64 {

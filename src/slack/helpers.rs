@@ -35,7 +35,7 @@ pub async fn send_authorized_post(
         .header("Authorization", String::from("Bearer ") + token)
         .body(body)?;
 
-    log::trace!("sending authorized request to {}: {:?}", url, &req);
+    log::trace!("sending authorized request to {}\n\t- {:?}", url, &req);
 
     let res = client.request(req).await?;
 
@@ -43,7 +43,7 @@ pub async fn send_authorized_post(
     let body = hyper::body::to_bytes(res).await;
 
     log::trace!(
-        "authorized response received from request to {}: {}: {:?}",
+        "authorized response received from request to {}\n\t- {}\n\t- {:?}",
         url,
         res_str,
         body

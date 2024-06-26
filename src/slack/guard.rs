@@ -13,8 +13,8 @@ use serde::Deserialize;
 use sha2::Sha256;
 use std::{fmt::Debug, sync::Arc};
 
-use crate::domain::events::find_all_events;
 use crate::domain::auth::verify_auth;
+use crate::domain::events::find_all_events;
 
 use super::state::AppState;
 

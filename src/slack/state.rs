@@ -10,7 +10,6 @@ pub struct AppState {
     pub configs: Arc<AppConfigs>,
 }
 
-
 pub struct AppConfigs {
     pub app_id: String,
     pub secret: String,

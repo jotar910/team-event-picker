@@ -20,10 +20,11 @@ pub struct Pick {
     pub event_id: u32,
     pub event_name: String,
     pub channel_id: u32,
-    pub channel_url: String,
+    pub channel_name: String,
     pub user_id: u32,
     pub user_name: String,
     pub team_id: String,
+    pub left_count: usize,
     pub access_token: String,
 }
 
@@ -40,6 +41,7 @@ pub struct PickResult {
     channel_id: u32,
     user_id: u32,
     team_id: String,
+    left_count: usize,
 }
 
 pub async fn execute(
@@ -71,6 +73,7 @@ pub async fn execute(
                 event_name: event.name,
                 prev_pick: pick.prev_pick,
                 cur_pick: pick.cur_pick,
+                left_count: event.participants.len() - (pick.cur_pick.count_ones() as usize),
                 team_id,
                 channel_id,
                 user_id,
@@ -126,10 +129,11 @@ pub async fn execute(
                 event_id: pick.event_id,
                 event_name: pick.event_name,
                 channel_id: pick.channel_id,
-                channel_url: channels.get(&pick.channel_id).unwrap().name.clone(),
+                channel_name: channels.get(&pick.channel_id).unwrap().name.clone(),
                 user_id: pick.user_id,
                 user_name: users.get(&pick.user_id).unwrap().name.clone(),
                 team_id: pick.team_id.clone(),
+                left_count: pick.left_count,
                 access_token: tokens.get(&pick.team_id)
                     .and_then(|auth| Some(auth.access_token.clone()))
                     .unwrap_or_else(|| {

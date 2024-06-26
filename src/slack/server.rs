@@ -21,10 +21,7 @@ pub async fn serve(config: Config) -> Result<()> {
         .route("/api/actions", axum::routing::post(super::actions::execute))
         .route_layer(middleware::from_fn(super::guard::validate))
         .route("/api/oauth", axum::routing::get(super::oauth::execute))
-        .route(
-            "/health",
-            axum::routing::get(health),
-        );
+        .route("/health", axum::routing::get(health));
 
     log::info!(
         "Connecting to database {}/{}",

@@ -68,6 +68,7 @@ pub async fn execute(
                 event_id: event_id,
                 event_name: event.name.clone(),
                 user_picked_id: result.name,
+                channel_id: event.channel.name,
                 user_id,
                 left_count,
             })

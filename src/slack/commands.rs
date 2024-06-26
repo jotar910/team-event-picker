@@ -217,7 +217,7 @@ async fn handle_pick(
         Err(..) => return Err(hyper::StatusCode::BAD_REQUEST),
     };
 
-    let response = pick_participant::execute(repo.clone(), id, channel, user, response_url)
+    let response = pick_participant::execute(repo.clone(), id, channel, user, response_url, false)
         .await?
         .map_or(String::from(""), |r| r.to_string());
 

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use crate::repository::{auth::Repository, errors::FindError};
 use crate::domain::entities::Auth;
+use crate::repository::{auth::Repository, errors::FindError};
 
 pub struct Request {
     pub team: String,

@@ -12,6 +12,7 @@ pub struct PickParticipantView {
     pub event_name: String,
     pub user_id: String,
     pub user_picked_id: String,
+    pub channel_id: String,
     pub left_count: usize,
     pub source: PickParticipantSource,
 }
@@ -29,6 +30,7 @@ pub struct PickParticipantResult {
 
 pub fn view(data: PickParticipantView) -> Value {
     let blocks = BlockGroup::empty()
+        .channel(data.channel_id)
         .add(
             Section::builder()
                 .text(text::Mrkdwn::from_text(
@@ -45,12 +47,12 @@ pub fn view(data: PickParticipantView) -> Value {
                             ),
                        PickParticipantSource::Scheduler =>
                          format!(
-                            "<@{}> randomly picked <@{}> for the event *{}* ({} left)\n\t\t_Source: Automatic scheduler_",
+                            "{} automatically picked <@{}> for the event *{}* ({} left)\n\t\t_Source: Automatic scheduler_",
                              data.user_id, data.user_picked_id, data.event_name, data.left_count
                             ),
                        PickParticipantSource::Skip =>
                          format!(
-                            "<@{}> skipped previous pick! <@a{}> is the new random pick for the event *{}* ({} left)\n\t\t_Source: Manual Skip_",
+                            "<@{}> skipped and now <@{}> was randomly picked for the event *{}* ({} left)\n\t\t_Source: Skip_",
                              data.user_id, data.user_picked_id, data.event_name, data.left_count
                             ),
                     }
@@ -63,21 +65,21 @@ pub fn view(data: PickParticipantView) -> Value {
                 .element(
                     Button::builder()
                         .text("Skip")
-                        .action_id("pick")
+                        .action_id("pick_participant_actions:pick")
                         .value(data.event_id.to_string())
                         .build(),
                 )
                 .element(
                     Button::builder()
                         .text(text::Plain::from_text("Repick"))
-                        .action_id("repick")
+                        .action_id("pick_participant_actions:repick")
                         .value(data.event_id.to_string())
                         .build(),
                 )
                 .element(
                     Button::builder()
                         .text(text::Plain::from_text("Cancel"))
-                        .action_id("cancel")
+                        .action_id("pick_participant_actions:cancel")
                         .value(data.event_id.to_string())
                         .style(Style::Danger)
                         .build(),

@@ -215,7 +215,10 @@ impl SchedulerDate {
             }
 
             let millis = Milliseconds::from_timestamp(
-                target_day.and_time(self.date.to_datetime().time()).and_utc().timestamp(),
+                target_day
+                    .and_time(self.date.to_datetime().time())
+                    .and_utc()
+                    .timestamp(),
             ) - year_start;
             let minute = Minutes::from(millis);
             minutes.push(minute.0);

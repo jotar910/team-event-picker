@@ -1,8 +1,9 @@
 use serde_json::json;
 
 use crate::domain::events::pick_auto_participants;
+use crate::views::pick_participant;
 
-use super::{helpers, templates};
+use super::helpers;
 
 pub async fn join_channel(token: &str, channel: &str) -> Result<(), Box<dyn std::error::Error>> {
     let body = json!({ "channel": channel }).to_string();
@@ -16,30 +17,24 @@ pub async fn join_channel(token: &str, channel: &str) -> Result<(), Box<dyn std:
 
 pub async fn post_picks(picks: Vec<pick_auto_participants::Pick>) {
     for pick in picks.into_iter() {
-        let body = templates::pick_auto(
-            pick.channel_url.clone(),
-            pick.event_id,
-            pick.event_name.clone(),
-            pick.user_name.clone(),
-        )
-        .unwrap_or(
-            json!({
-                "channel": pick.channel_url,
-                "text": format!("Picked <@{}> for {}", pick.user_name, pick.event_name),
-            })
-            .to_string(),
-        );
-        match helpers::send_authorized_post(
+        let body = pick_participant::view(pick_participant::PickParticipantView {
+            source: pick_participant::PickParticipantSource::Scheduler,
+            event_id: pick.event_id,
+            event_name: pick.event_name,
+            channel_id: pick.channel_name,
+            user_id: dotenv::var("BOT_NAME").unwrap_or(String::from("Team Picker")),
+            user_picked_id: pick.user_name,
+            left_count: pick.left_count,
+        })
+        .to_string();
+        helpers::send_authorized_post(
             "https://slack.com/api/chat.postMessage",
             &pick.access_token,
             hyper::Body::from(body),
         )
         .await
-        {
-            Ok(res) => res,
-            Err(err) => {
-                log::error!("failed to notify pick results: {}", err);
-            }
-        };
+        .unwrap_or_else(|err| {
+            log::error!("failed to notify pick results: {}", err);
+        });
     }
 }

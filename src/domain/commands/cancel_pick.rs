@@ -3,12 +3,10 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use crate::{
-    domain::events::{find_event, pick_participant},
+    domain::events::{cancel_pick, find_event},
     repository::event::Repository,
     slack::helpers::send_post,
-    views::pick_participant::{
-        view as pick_participant_view, PickParticipantSource, PickParticipantView,
-    },
+    views::cancel_pick::{view as cancel_pick_view, CancelPickView},
 };
 
 pub async fn execute(
@@ -17,11 +15,10 @@ pub async fn execute(
     channel_id: String,
     user_id: String,
     response_url: String,
-    is_skip: bool,
 ) -> Result<Option<Value>, hyper::StatusCode> {
-    let result = match pick_participant::execute(
+    let result = match cancel_pick::execute(
         repo.clone(),
-        pick_participant::Request {
+        cancel_pick::Request {
             event: event_id,
             channel: channel_id.clone(),
         },
@@ -31,9 +28,9 @@ pub async fn execute(
         Ok(response) => response,
         Err(err) => {
             return Err(match err {
-                pick_participant::Error::Empty => hyper::StatusCode::NOT_ACCEPTABLE,
-                pick_participant::Error::NotFound => hyper::StatusCode::NOT_FOUND,
-                pick_participant::Error::Unknown => hyper::StatusCode::INTERNAL_SERVER_ERROR,
+                cancel_pick::Error::Empty => hyper::StatusCode::NOT_ACCEPTABLE,
+                cancel_pick::Error::NotFound => hyper::StatusCode::NOT_FOUND,
+                cancel_pick::Error::Unknown => hyper::StatusCode::INTERNAL_SERVER_ERROR,
             })
         }
     };
@@ -55,23 +52,16 @@ pub async fn execute(
         }
     };
     let left_count = event.participants.len() - event.picked.len();
-    log::trace!("picked new participant: {:?} ({} left)", result, left_count);
+    log::trace!("cancelled pick: {:?} ({} left)", result, left_count);
 
     send_post(
         &response_url,
         hyper::Body::from(
-            pick_participant_view(PickParticipantView {
-                source: if is_skip {
-                    PickParticipantSource::Skip
-                } else {
-                    PickParticipantSource::Pick
-                },
+            cancel_pick_view(CancelPickView {
                 event_id: event_id,
                 event_name: event.name.clone(),
                 channel_id: event.channel.name,
-                user_picked_id: result.name,
                 user_id,
-                left_count,
             })
             .to_string(),
         ),

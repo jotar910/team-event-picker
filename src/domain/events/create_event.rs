@@ -93,7 +93,7 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
             })
         }
     };
-    
+
     validate_channels_count(repo.clone(), channel.id, req.max_events).await?;
 
     match repo
@@ -148,14 +148,22 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
     }
 }
 
-async fn validate_channels_count(repo: Arc<dyn Repository>, channel: u32, max_events: u32) -> Result<(), Error> {
+async fn validate_channels_count(
+    repo: Arc<dyn Repository>,
+    channel: u32,
+    max_events: u32,
+) -> Result<(), Error> {
     let count = repo.count_events(channel).await.map_err(|err| {
         log::error!("counting events for channel {} failed: {:?}", channel, err);
         Error::Unknown
     })?;
     if count == max_events {
-        log::trace!("could not add more events on channel {}: max channels {} reached", channel, max_events);
-        return Err(Error::Forbidden)
+        log::trace!(
+            "could not add more events on channel {}: max channels {} reached",
+            channel,
+            max_events
+        );
+        return Err(Error::Forbidden);
     }
     Ok(())
 }
