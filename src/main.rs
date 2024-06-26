@@ -8,15 +8,17 @@ use team_event_picker::slack;
 async fn main() -> Result<()> {
     // This returns an error if the `.env` file doesn't exist, but that's not what we want
     // since we're not going to use a `.env` file if we deploy this application.
-    if let Err(err) = dotenv::dotenv() {
-        log::warn!("could not load .env file: {}", err);
-    } else {
-        log::info!("loaded .env file");
-    };
+   let dotenv_result = dotenv::dotenv();
 
     // Initialize the logger.
     env_logger::init();
     log::set_max_level(LevelFilter::Trace);
+
+    if let Err(err) = dotenv_result {
+        log::warn!("could not load .env file: {}", err);
+    } else {
+        log::info!("loaded .env file");
+    };
 
     // Parse our configuration from the environment.
     // This will exit with a help message if something is wrong.
