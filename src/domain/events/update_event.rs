@@ -3,12 +3,10 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use serde_trim::{string_trim, vec_string_trim};
 
+use crate::domain::entities::{Event, Participant, RepeatPeriod};
+use crate::domain::timezone::Timezone;
 use crate::repository::errors::{FindError, UpdateError};
 use crate::repository::event::Repository;
-
-use crate::domain::entities::{Event, RepeatPeriod};
-use crate::domain::events::{insert_channel, insert_users};
-use crate::domain::timezone::Timezone;
 
 #[derive(Deserialize, Clone)]
 pub struct Request {
@@ -22,22 +20,6 @@ pub struct Request {
     pub participants: Vec<String>,
     #[serde(skip_deserializing)]
     pub channel: String,
-}
-
-impl From<Request> for insert_users::Request {
-    fn from(value: Request) -> Self {
-        Self {
-            names: value.participants,
-        }
-    }
-}
-
-impl From<Request> for insert_channel::Request {
-    fn from(value: Request) -> Self {
-        Self {
-            name: value.channel,
-        }
-    }
 }
 
 #[derive(Serialize, Debug)]
@@ -56,34 +38,8 @@ pub enum Error {
     Unknown,
 }
 
-impl From<insert_users::Error> for Error {
-    fn from(value: insert_users::Error) -> Self {
-        match value {
-            insert_users::Error::Unknown => Error::Unknown,
-        }
-    }
-}
-
-impl From<insert_channel::Error> for Error {
-    fn from(value: insert_channel::Error) -> Self {
-        match value {
-            insert_channel::Error::Unknown => Error::Unknown,
-        }
-    }
-}
-
 pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    let channel = repo
-        .find_channel_by_name(req.channel.clone())
-        .await
-        .map_err(|error| {
-            return match error {
-                FindError::NotFound => Error::NotFound,
-                FindError::Unknown => Error::Unknown,
-            };
-        })?;
-
-    let existing_event = match repo.clone().find_event(req.id.clone(), channel.id).await {
+    let existing_event = match repo.clone().find_event(req.id.clone(), req.channel).await {
         Ok(event) => event,
         Err(error) => {
             return Err(match error {
@@ -93,29 +49,28 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         }
     };
 
-    let mut event = Event {
+    let event = Event {
         id: existing_event.id,
         name: req.name.clone(),
         timestamp: req.timestamp,
         timezone: Timezone::from(req.timezone.clone()),
         repeat: RepeatPeriod::try_from(req.repeat.clone()).map_err(|_| Error::BadRequest)?,
-        participants: vec![],
+        participants: [
+            existing_event
+                .participants
+                .into_iter()
+                .filter(|p| !req.participants.contains(&p.user))
+                .collect::<Vec<Participant>>(),
+            req.participants
+                .into_iter()
+                .map(|name| name.into())
+                .collect::<Vec<Participant>>(),
+        ]
+        .concat(),
         channel: existing_event.channel,
-        prev_pick: 0,
-        cur_pick: 0,
         team_id: existing_event.team_id,
         deleted: false,
     };
-    event.participants = insert_users::execute(repo.clone(), req.clone().into())
-        .await?
-        .users
-        .iter()
-        .map(|user| user.id)
-        .collect();
-    event.channel = insert_channel::execute(repo.clone(), req.clone().into())
-        .await?
-        .channel
-        .id;
 
     match repo.update_event(event.clone()).await {
         Ok(..) => Ok(Response {

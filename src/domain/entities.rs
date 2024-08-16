@@ -1,8 +1,8 @@
 use std::fmt::Display;
 
-use serde::{Deserialize, Serialize};
-
 use super::timezone::Timezone;
+use crate::helpers::date::Date;
+use serde::{Deserialize, Serialize};
 
 pub trait HasId {
     fn set_id(&mut self, id: u32);
@@ -16,10 +16,8 @@ pub struct Event {
     pub timestamp: i64,
     pub timezone: Timezone,
     pub repeat: RepeatPeriod,
-    pub participants: Vec<u32>,
-    pub channel: u32,
-    pub prev_pick: u32,
-    pub cur_pick: u32,
+    pub participants: Vec<Participant>,
+    pub channel: String,
     pub team_id: String,
     pub deleted: bool,
 }
@@ -31,6 +29,25 @@ impl HasId for Event {
 
     fn get_id(&self) -> u32 {
         self.id
+    }
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+pub struct Participant {
+    pub user: String,
+    pub picked: bool,
+    pub created_at: i64,
+    pub picked_at: Option<i64>,
+}
+
+impl From<String> for Participant {
+    fn from(user: String) -> Self {
+        Self {
+            user,
+            picked: false,
+            created_at: Date::now().timestamp(),
+            picked_at: None,
+        }
     }
 }
 

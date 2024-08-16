@@ -17,6 +17,13 @@ impl Date {
         };
     }
 
+    pub fn now() -> Self {
+        return Self {
+            timestamp: Utc::now().timestamp(),
+            timezone: Timezone::UTC,
+        };
+    }
+
     pub fn with_timezone(self: &Self, timezone: Timezone) -> Self {
         return Self {
             timestamp: self.timestamp,

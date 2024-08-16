@@ -51,7 +51,8 @@ pub async fn execute(
             })
         }
     };
-    let left_count = event.participants.len() - event.picked.len();
+    let left_count =
+        event.participants.len() - event.participants.iter().filter(|p| p.picked).count();
     log::trace!("cancelled pick: {:?} ({} left)", result, left_count);
 
     send_post(
@@ -60,7 +61,7 @@ pub async fn execute(
             cancel_pick_view(CancelPickView {
                 event_id: event_id,
                 event_name: event.name.clone(),
-                channel_id: event.channel.name,
+                channel_id: event.channel,
                 user_id,
             })
             .to_string(),

@@ -40,5 +40,10 @@ sha2 = "0.10.8"
 hex = "0.4.3"
 futures = "0.3.30"
 chrono-tz = "0.8.6"
+
+# Slack dependencies
+slack = "0.25.0"
 slack-blocks = "0.25.0"
-# console-subscriber = "0.1.8"
+reqwest = "0.10.10"
+slack_api = "0.23.1"
+slack-rust = "0.0.1-alpha"

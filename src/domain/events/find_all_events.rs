@@ -3,7 +3,7 @@ use std::sync::Arc;
 use serde::Serialize;
 
 use crate::domain::dtos::ListResponse;
-use crate::domain::entities::RepeatPeriod;
+use crate::domain::entities::{Participant, RepeatPeriod};
 use crate::domain::timezone::Timezone;
 use crate::repository::errors::FindAllError;
 use crate::repository::event::Repository;
@@ -19,7 +19,7 @@ pub struct Response {
     pub timestamp: i64,
     pub timezone: Timezone,
     pub repeat: RepeatPeriod,
-    pub participants: Vec<String>,
+    pub participants: Vec<Participant>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -31,11 +31,7 @@ pub async fn execute(
     repo: Arc<dyn Repository>,
     req: Request,
 ) -> Result<ListResponse<Response>, Error> {
-    let channel = match repo.clone().find_channel_by_name(req.channel).await {
-        Ok(channel) => channel,
-        _ => return Ok(ListResponse::new(vec![])),
-    };
-    let events = match repo.find_all_events(channel.id).await {
+    let events = match repo.find_all_events(req.channel).await {
         Err(err) => {
             return match err {
                 FindAllError::Unknown => Err(Error::Unknown),
@@ -43,25 +39,17 @@ pub async fn execute(
         }
         Ok(events) => events,
     };
-    Ok(ListResponse::new({
-        let mut responses = Vec::new();
-        for event in events.into_iter() {
-            let participants = match repo.find_users(event.participants).await {
-                Ok(users) => users,
-                Err(error) => match error {
-                    FindAllError::Unknown => return Err(Error::Unknown),
-                },
-            };
-            let response = Response {
+    Ok(ListResponse::new(
+        events
+            .into_iter()
+            .map(|event| Response {
                 id: event.id,
                 name: event.name,
                 timestamp: event.timestamp,
                 timezone: event.timezone,
                 repeat: event.repeat,
-                participants: participants.into_iter().map(|user| user.name).collect(),
-            };
-            responses.push(response);
-        }
-        responses
-    }))
+                participants: event.participants,
+            })
+            .collect(),
+    ))
 }

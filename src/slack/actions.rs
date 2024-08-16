@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 
 use super::state::AppConfigs;
-use super::{sender, templates, AppState};
+use super::{templates, AppState};
 use crate::domain::commands::cancel_pick;
 use crate::domain::entities::RepeatPeriod;
 use crate::domain::timezone::Timezone;
@@ -199,15 +199,15 @@ impl TryFrom<AddEventData> for create_event::Request {
                 .and_then(|d| d.selected_option)
                 .and_then(|d| d.value)
                 .unwrap_or(Timezone::UTC.into()),
-            repeat: data
-                .form
-                .repeat_input
-                .clone()
-                .ok_or("no repeat input")?
-                .selected_option
-                .ok_or("no repeat option")?
-                .value
-                .ok_or("no repeat value")?,
+            repeat: match data.form.repeat_input {
+                Some(input) => input
+                    .clone()
+                    .selected_option
+                    .ok_or("no repeat option")?
+                    .value
+                    .ok_or("no repeat value")?,
+                None => String::from("None"),
+            },
             participants,
         })
     }
@@ -231,11 +231,7 @@ impl From<find_event::Response> for UpdateEventDetails {
             timestamp: value.timestamp,
             timezone: value.timezone,
             repeat: value.repeat,
-            participants: value
-                .participants
-                .into_iter()
-                .map(|user| user.name)
-                .collect(),
+            participants: value.participants.into_iter().map(|p| p.user).collect(),
         }
     }
 }
@@ -332,7 +328,7 @@ pub async fn execute(
         from_str(&body).unwrap_or(body)
     );
 
-    let token = super::find_token(&headers)?;
+    // let token = super::find_token(&headers)?;
 
     let payload: CommandAction = from_str(&payload.payload).unwrap();
 
@@ -348,8 +344,7 @@ pub async fn execute(
                     .await;
             }
             if action_id.starts_with("cancel_pick_actions:") {
-                return handle_cancel_pick_event(state.event_repo.clone(), action, &payload)
-                    .await;
+                return handle_cancel_pick_event(state.event_repo.clone(), action, &payload).await;
             }
         }
         if let None = action.block_id {
@@ -362,7 +357,7 @@ pub async fn execute(
                     state.event_repo.clone(),
                     state.scheduler.clone(),
                     state.configs.clone(),
-                    token,
+                    // token,
                     action,
                     &payload,
                 )
@@ -444,7 +439,7 @@ async fn handle_add_event(
     repo: Arc<dyn Repository>,
     scheduler: Arc<Scheduler>,
     configs: Arc<AppConfigs>,
-    token: String,
+    // token: String,
     action: &Action,
     command_action: &CommandAction,
 ) -> Result<(), hyper::StatusCode> {
@@ -470,41 +465,42 @@ async fn handle_add_event(
         _ => return Err(hyper::StatusCode::INTERNAL_SERVER_ERROR),
     };
 
-    let added_to_channel = match response.created_channel {
-        Some(channel) => {
-            match sender::join_channel(&token, &channel).await {
-                Ok(res) => {
-                    /* TODO: find why this gives error, and putting outside don't.
-                    if let Err(err) = task::spawn(async move {
-                        scheduler.insert(EventSchedule {
-                            id: response.id,
-                            date: response.date,
-                            repeat: response.repeat,
-                        }).await;
-                    }).await {
-                        log::error!("unable to insert event into scheduler: {}", err)
-                    } */
-                    Some(res)
-                }
-                Err(err) => {
-                    log::error!("unable to send slack error response: {}", err);
-                    None
-                }
-            }
-        }
-        None => Some(()),
-    };
-
-    if let Some(..) = added_to_channel {
-        scheduler
-            .insert(EventSchedule {
-                id: response.id,
-                timestamp: response.timestamp,
-                timezone: response.timezone,
-                repeat: response.repeat,
-            })
-            .await;
-    }
+    // TODO: Check if needed this extra complexity.
+    // let added_to_channel = match response.created_channel {
+    //     Some(channel) => {
+    //         match sender::join_channel(&token, &channel).await {
+    //             Ok(res) => {
+    //                 /* TODO: find why this gives error, and putting outside don't.
+    //                 if let Err(err) = task::spawn(async move {
+    //                     scheduler.insert(EventSchedule {
+    //                         id: response.id,
+    //                         date: response.date,
+    //                         repeat: response.repeat,
+    //                     }).await;
+    //                 }).await {
+    //                     log::error!("unable to insert event into scheduler: {}", err)
+    //                 } */
+    //                 Some(res)
+    //             }
+    //             Err(err) => {
+    //                 log::error!("unable to send slack error response: {}", err);
+    //                 None
+    //             }
+    //         }
+    //     }
+    //     None => Some(()),
+    // };
+    //
+    // if let Some(..) = added_to_channel {
+    scheduler
+        .insert(EventSchedule {
+            id: response.id,
+            timestamp: response.timestamp,
+            timezone: response.timezone,
+            repeat: response.repeat,
+        })
+        .await;
+    // }
 
     let body =
         templates::add_event_success(repo, command_action.channel.id.clone(), response.id).await?;
@@ -781,8 +777,6 @@ async fn handle_pick_participant_event(
         }
     }
 }
-
-
 
 async fn handle_cancel_pick_event(
     repo: Arc<dyn Repository>,

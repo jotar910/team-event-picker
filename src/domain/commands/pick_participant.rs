@@ -54,7 +54,8 @@ pub async fn execute(
             })
         }
     };
-    let left_count = event.participants.len() - event.picked.len();
+    let left_count =
+        event.participants.len() - event.participants.iter().filter(|p| p.picked).count();
     log::trace!("picked new participant: {:?} ({} left)", result, left_count);
 
     send_post(
@@ -68,8 +69,8 @@ pub async fn execute(
                 },
                 event_id: event_id,
                 event_name: event.name.clone(),
-                channel_id: event.channel.name,
-                user_picked_id: result.name,
+                channel_id: event.channel,
+                user_picked_id: result.id,
                 user_id,
                 left_count,
             })

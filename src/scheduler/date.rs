@@ -154,7 +154,9 @@ impl SchedulerDate {
         let mut position_time = time;
         let mut minutes = vec![];
         while position_time.0 < year_end.0 {
-            let position_date = Date::new(position_time.0 / 1000).with_timezone(self.date.timezone()).to_datetime();
+            let position_date = Date::new(position_time.0 / 1000)
+                .with_timezone(self.date.timezone())
+                .to_datetime();
             let position_weekday = position_date.weekday();
             if interval != 1
                 || (position_weekday != Weekday::Sat && position_weekday != Weekday::Sun)
