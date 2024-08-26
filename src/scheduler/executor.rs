@@ -106,7 +106,7 @@ impl DateRecords {
 
     fn set_event_minutes(&mut self, event_id: u32, date: &SchedulerDate) {
         let minutes = date.find_minutes();
-        log::debug!(
+        log::trace!(
             "calculated minutes for the event {}: {}",
             event_id,
             minutes

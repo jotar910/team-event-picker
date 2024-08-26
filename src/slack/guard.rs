@@ -122,7 +122,7 @@ impl Guard {
     async fn validate_signature(&self) -> Result<(), StatusCode> {
         let slack_request_timestamp = self.headers.get("x-slack-request-timestamp");
         let slack_signature = self.headers.get("x-slack-signature");
-        log::debug!(
+        log::trace!(
             "verifying signature: x-slack-request-timestamp={:?},x-slack-signature={:?}",
             slack_request_timestamp,
             slack_signature
@@ -168,7 +168,7 @@ impl Guard {
             return Err(StatusCode::UNAUTHORIZED);
         }
 
-        log::debug!("signature verified");
+        log::trace!("signature verified");
         Ok(())
     }
 
@@ -212,7 +212,7 @@ impl Guard {
         })?;
         self.headers.append("x-access-token", access_token_header);
 
-        log::debug!("user authenticated");
+        log::trace!("user authenticated");
         Ok(())
     }
 
