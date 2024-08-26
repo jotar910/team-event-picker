@@ -13,6 +13,7 @@ impl From<mongodb::error::Error> for FindError {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum FindAllError {
     Unknown,
 }
@@ -36,6 +37,15 @@ impl From<mongodb::error::Error> for InsertError {
     fn from(value: mongodb::error::Error) -> Self {
         log::error!("occurred an error in mongodb: {}", value);
         match value.kind {
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl From<bson::ser::Error> for InsertError {
+    fn from(value: bson::ser::Error) -> Self {
+        log::error!("occurred an error in mongodb: {}", value);
+        match value {
             _ => Self::Unknown,
         }
     }

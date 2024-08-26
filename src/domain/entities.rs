@@ -1,5 +1,5 @@
+use std::collections::HashMap;
 use std::fmt::Display;
-
 use super::timezone::Timezone;
 use crate::helpers::date::Date;
 use serde::{Deserialize, Serialize};
@@ -20,6 +20,77 @@ pub struct Event {
     pub channel: String,
     pub team_id: String,
     pub deleted: bool,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub struct OldEvent {
+    pub id: u32,
+    pub name: String,
+    pub timestamp: i64,
+    pub timezone: Timezone,
+    pub repeat: RepeatPeriod,
+    pub participants: Vec<u32>,
+    pub channel: u32,
+    pub prev_pick: u32,
+    pub cur_pick: u32,
+    pub team_id: String,
+    pub deleted: bool,
+}
+
+impl Event {
+    pub fn migrate(old: OldEvent, users: &HashMap<u32,String>, channels: &HashMap<u32, String>) -> Self {
+        let channel = channels.get(&old.channel).unwrap().clone();
+        Self {
+            id: old.id,
+            name: old.name,
+            timestamp: old.timestamp,
+            timezone: old.timezone,
+            repeat: old.repeat,
+            participants: old.participants.into_iter().enumerate().map(|(i, p)| {
+                let user = users.get(&p).unwrap().clone();
+                Participant {
+                    user,
+                    picked: picked(old.cur_pick, i),
+                    created_at: old.timestamp,
+                    picked_at: picked_at(old.cur_pick, old.prev_pick, i)
+                }
+            }).collect(),
+            channel,
+            team_id: old.team_id,
+            deleted: old.deleted,
+        }
+    }
+}
+
+fn picked(cur_pick: u32, index: usize) -> bool {
+    if index >= 32 {
+        return false;
+    }
+    return cur_pick & (1 << index) != 0;
+}
+
+fn was_last_picked(cur_pick: u32, prev_pick: u32, index: usize) -> bool {
+    return picked(cur_pick, index) && !picked(prev_pick, index);
+}
+
+fn picked_at(cur_pick: u32, prev_pick: u32, index: usize) -> Option<i64> {
+    if was_last_picked(cur_pick, prev_pick, index) {
+        return Some(Date::now().timestamp());
+    }
+    if picked(cur_pick, index) {
+        return Some(Date::now().timestamp() - 1);
+    }
+    return None;
+}
+
+impl HasId for OldEvent {
+    fn set_id(&mut self, id: u32) {
+        self.id = id;
+    }
+
+    fn get_id(&self) -> u32 {
+        self.id
+    }
 }
 
 impl HasId for Event {
