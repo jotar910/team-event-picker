@@ -17,10 +17,7 @@ where
 
 pub fn replace_participant(picks: Vec<Participant>, participant: Participant) -> Vec<Participant> {
     let mut picks = picks.clone();
-    if let Some(p) = picks
-        .iter_mut()
-        .find(|p| p.user == participant.user)
-    {
+    if let Some(p) = picks.iter_mut().find(|p| p.user == participant.user) {
         *p = participant;
     }
     return picks;
@@ -48,9 +45,24 @@ mod tests {
     #[test]
     fn test_last_picked() {
         let picks = vec![
-            Participant { user: String::from("U04PGARU4K1"), picked: false, created_at: 1723822080, picked_at: None },
-            Participant { user: String::from("USLACKBOT"), picked: true, created_at: 1723822080, picked_at: Some(1724681700) },
-            Participant { user: String::from("U0797QD5AJZ"), picked: true, created_at: 1723822080, picked_at: Some(1724681760) },
+            Participant {
+                user: String::from("U04PGARU4K1"),
+                picked: false,
+                created_at: 1723822080,
+                picked_at: None,
+            },
+            Participant {
+                user: String::from("USLACKBOT"),
+                picked: true,
+                created_at: 1723822080,
+                picked_at: Some(1724681700),
+            },
+            Participant {
+                user: String::from("U0797QD5AJZ"),
+                picked: true,
+                created_at: 1723822080,
+                picked_at: Some(1724681760),
+            },
         ];
         let last_picked = last_picked(&picks);
         assert_eq!(last_picked.unwrap().user, "U0797QD5AJZ");

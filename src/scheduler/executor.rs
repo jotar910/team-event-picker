@@ -75,7 +75,7 @@ impl DateRecords {
         let date_str = Date::new(event.timestamp)
             .with_timezone(event.timezone)
             .to_string();
-        log::debug!(
+        log::trace!(
             "added event to scheduler: {} at {} ({} secs)",
             event.id,
             date_str,
@@ -89,7 +89,7 @@ impl DateRecords {
             return;
         }
         self.clear_event(event_id);
-        log::debug!("removed event from scheduler: {}", event_id);
+        log::trace!("removed event from scheduler: {}", event_id);
     }
 
     fn reset_minutes(&mut self) {

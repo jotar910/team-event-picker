@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use std::fmt::Display;
 use super::timezone::Timezone;
 use crate::helpers::date::Date;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fmt::Display;
 
 pub trait HasId {
     fn set_id(&mut self, id: u32);
@@ -38,7 +38,11 @@ pub struct OldEvent {
 }
 
 impl Event {
-    pub fn migrate(old: OldEvent, users: &HashMap<u32,String>, channels: &HashMap<u32, String>) -> Self {
+    pub fn migrate(
+        old: OldEvent,
+        users: &HashMap<u32, String>,
+        channels: &HashMap<u32, String>,
+    ) -> Self {
         let channel = channels.get(&old.channel).unwrap().clone();
         Self {
             id: old.id,
@@ -46,15 +50,20 @@ impl Event {
             timestamp: old.timestamp,
             timezone: old.timezone,
             repeat: old.repeat,
-            participants: old.participants.into_iter().enumerate().map(|(i, p)| {
-                let user = users.get(&p).unwrap().clone();
-                Participant {
-                    user,
-                    picked: picked(old.cur_pick, i),
-                    created_at: old.timestamp,
-                    picked_at: picked_at(old.cur_pick, old.prev_pick, i)
-                }
-            }).collect(),
+            participants: old
+                .participants
+                .into_iter()
+                .enumerate()
+                .map(|(i, p)| {
+                    let user = users.get(&p).unwrap().clone();
+                    Participant {
+                        user,
+                        picked: picked(old.cur_pick, i),
+                        created_at: old.timestamp,
+                        picked_at: picked_at(old.cur_pick, old.prev_pick, i),
+                    }
+                })
+                .collect(),
             channel,
             team_id: old.team_id,
             deleted: old.deleted,
@@ -182,6 +191,19 @@ impl RepeatPeriod {
         }
         .to_string()
     }
+
+    pub fn value(label: String) -> RepeatPeriod {
+        log::error!("label: {}", label);
+        match label.as_str() {
+            "Daily" => RepeatPeriod::Daily,
+            "Weekly" => RepeatPeriod::Weekly(1),
+            "Bi-weekly" => RepeatPeriod::Weekly(2),
+            "Monthly" => RepeatPeriod::Monthly(1),
+            "Bi-monthly" => RepeatPeriod::Monthly(2),
+            "Yearly" => RepeatPeriod::Yearly,
+            _ => RepeatPeriod::None,
+        }
+    }
 }
 
 impl TryFrom<String> for RepeatPeriod {
@@ -202,7 +224,7 @@ impl TryFrom<String> for RepeatPeriod {
 }
 
 impl TryFrom<RepeatPeriod> for String {
-    type Error = ();
+    type Error = String;
 
     fn try_from(value: RepeatPeriod) -> Result<Self, Self::Error> {
         Ok(match value {
@@ -213,7 +235,7 @@ impl TryFrom<RepeatPeriod> for String {
             RepeatPeriod::Monthly(1) => "monthly",
             RepeatPeriod::Monthly(2) => "monthly_two",
             RepeatPeriod::Yearly => "yearly",
-            _ => return Err(()),
+            _ => return Err(format!("Invalid RepeatPeriod: {:?}", value)),
         }
         .to_string())
     }

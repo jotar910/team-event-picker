@@ -129,7 +129,7 @@ pub async fn execute(
 
     match serde_json::from_str::<Value>(&result) {
         Ok(result) => {
-            log::debug!("command response: {:?}", result);
+            log::trace!("command response: {:?}", result);
             Ok(Json(result).into_response())
         }
         Err(err) => {

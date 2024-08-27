@@ -206,7 +206,7 @@ impl TryFrom<AddEventData> for create_event::Request {
                     .ok_or("no repeat option")?
                     .value
                     .ok_or("no repeat value")?,
-                None => String::from("None"),
+                None => String::try_from(RepeatPeriod::None)?,
             },
             participants,
         })
@@ -424,7 +424,7 @@ pub async fn execute(
             }
         };
         if let Err(err) = result {
-            log::trace!("failed to execute action: {}", err);
+            log::info!("failed to execute action: {}", err);
             return Err(err);
         }
         return Ok(());
@@ -729,7 +729,7 @@ async fn handle_list_event(
             handle_create_event(&command_action.response_url).await
         }
         _ => {
-            log::debug!("unknown action value for list event: {:?}", action.value);
+            log::trace!("unknown action value for list event: {:?}", action.value);
             return Err(hyper::StatusCode::BAD_REQUEST);
         }
     }
@@ -769,7 +769,7 @@ async fn handle_pick_participant_event(
             handle_cancel_pick(repo, response_url, channel, user, event_id).await
         }
         _ => {
-            log::debug!(
+            log::trace!(
                 "unknown action value for pick participant event: {:?}",
                 action.value
             );
@@ -806,7 +806,7 @@ async fn handle_cancel_pick_event(
             handle_pick_event(repo, response_url, channel, user, event_id).await
         }
         _ => {
-            log::debug!(
+            log::trace!(
                 "unknown action value for cancel pick event: {:?}",
                 action.value
             );

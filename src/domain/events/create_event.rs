@@ -49,7 +49,14 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         .find_event_by_name(req.name.clone(), req.channel.clone())
         .await
     {
-        Ok(..) => return Err(Error::Conflict),
+        Ok(..) => {
+            log::trace!(
+                "could not add event with name {} on channel {}: event already exists",
+                req.name,
+                req.channel
+            );
+            return Err(Error::Conflict);
+        }
         Err(error) if error != FindError::NotFound => return Err(Error::Unknown),
         _ => (),
     };
@@ -59,7 +66,10 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
         name: req.name.clone(),
         timestamp: req.timestamp,
         timezone: Timezone::from(req.timezone.clone()),
-        repeat: RepeatPeriod::try_from(req.repeat.clone()).map_err(|_| Error::BadRequest)?,
+        repeat: RepeatPeriod::try_from(req.repeat.clone()).map_err(|err| {
+            log::trace!("could not parse repeat period {}: {:?}", req.repeat, err);
+            Error::BadRequest
+        })?,
         participants: vec![],
         channel: req.channel,
         team_id: req.team_id.clone(),
@@ -101,7 +111,7 @@ async fn validate_channels_count(
         Error::Unknown
     })?;
     if count == max_events {
-        log::trace!(
+        log::warn!(
             "could not add more events on channel {}: max channels {} reached",
             channel,
             max_events

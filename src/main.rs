@@ -11,7 +11,7 @@ async fn main() -> Result<()> {
     let dotenv_result = dotenv::dotenv();
 
     // Initialize the logger.
-    env_logger::init();
+    tracing_subscriber::fmt::init();
     log::set_max_level(LevelFilter::Trace);
 
     if let Err(err) = dotenv_result {

@@ -277,13 +277,22 @@ impl Repository for MongoDbRepository {
             .find_event_by_name(event.name.clone(), event.channel.clone())
             .await
         {
-            Ok(..) => return Err(InsertError::Conflict),
-            Err(error) if error != FindError::NotFound => return Err(InsertError::Unknown),
+            Ok(..) => {
+                log::error!(
+                    "insert_event: event with name {} already exists",
+                    event.name
+                );
+                return Err(InsertError::Conflict);
+            }
+            Err(error) if error != FindError::NotFound => {
+                log::error!("insert_event: inserting event failed: {:?}", error);
+                return Err(InsertError::Unknown);
+            }
             _ => (),
         };
 
         let mut result = event.clone();
-        let collection = self.db.collection::<Event>("events_2");
+        let collection = self.db.collection::<Event>("events");
 
         collection
             .insert_one(Self::fill_with_id(&collection, &mut result).await?, None)
@@ -366,7 +375,7 @@ mod test {
         let repository = MongoDbRepository::new(&db_tool_url, &db_tool_name, 10)
             .await
             .unwrap();
-        env_logger::init();
+        tracing_subscriber::fmt::init();
         log::set_max_level(LevelFilter::Trace);
         assert!(repository
             .migrate()
@@ -394,7 +403,7 @@ mod test {
         let to_repository = MongoDbRepository::new(&to_db_tool_url, &to_db_tool_name, 10)
             .await
             .unwrap();
-        env_logger::init();
+        tracing_subscriber::fmt::init();
         log::set_max_level(LevelFilter::Trace);
         assert!(to_repository
             .copy::<Channel>(&from_repository, "channels")
