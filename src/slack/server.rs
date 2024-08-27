@@ -4,8 +4,7 @@ use axum::extract::MatchedPath;
 use axum::{middleware, Extension, Router, Server};
 use hyper::{Body, Request, Result};
 use tokio::{join, sync::mpsc, task};
-use tower_http::trace::{DefaultOnResponse, TraceLayer};
-use tower_http::LatencyUnit;
+use tower_http::trace::{TraceLayer};
 
 use crate::{
     config::Config,

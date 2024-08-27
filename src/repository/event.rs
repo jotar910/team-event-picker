@@ -1,11 +1,8 @@
-use std::collections::HashMap;
-
 use async_trait::async_trait;
 use mongodb::bson::doc;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
 
-use crate::domain::entities::{Channel, Event, HasId, OldEvent};
+use crate::domain::entities::{Event, HasId};
 use crate::repository::errors::{
     CountError, DeleteError, FindAllError, FindError, InsertError, UpdateError,
 };
@@ -27,9 +24,7 @@ pub trait Repository: Send + Sync {
 }
 
 pub struct MongoDbRepository {
-    client: mongodb::Client,
     db: mongodb::Database,
-    db_name: String,
 }
 
 impl MongoDbRepository {
@@ -48,9 +43,7 @@ impl MongoDbRepository {
         db.run_command(doc! {"ping": 1}, None).await?;
 
         Ok(MongoDbRepository {
-            client,
             db,
-            db_name: database.to_string(),
         })
     }
 
@@ -94,103 +87,6 @@ impl MongoDbRepository {
             result.push(cursor.deserialize_current()?);
         }
         Ok(result)
-    }
-
-    async fn migrate(&self) -> Result<(), InsertError> {
-        let session = self.client.start_session(None).await?;
-
-        let mut cursor = session
-            .client()
-            .database(&self.db_name)
-            .collection::<Channel>("users")
-            .find(doc! {}, None)
-            .await?;
-        let mut users: HashMap<u32, String> = HashMap::new();
-        while cursor.advance().await? {
-            let user = cursor.deserialize_current()?;
-            users.insert(user.id, user.name.clone());
-        }
-
-        let mut cursor = session
-            .client()
-            .database(&self.db_name)
-            .collection::<Channel>("channels")
-            .find(doc! {}, None)
-            .await?;
-        let mut channels: HashMap<u32, String> = HashMap::new();
-        while cursor.advance().await? {
-            let channel = cursor.deserialize_current()?;
-            channels.insert(channel.id, channel.name.clone());
-        }
-
-        let mut cursor = session
-            .client()
-            .database(&self.db_name)
-            .collection::<OldEvent>("events")
-            .find(doc! {}, None)
-            .await?;
-        let mut events: Vec<OldEvent> = vec![];
-        while cursor.advance().await? {
-            events.push(cursor.deserialize_current()?);
-        }
-
-        let new_events = events
-            .into_iter()
-            .map(|old| Event::migrate(old, &users, &channels))
-            .collect::<Vec<Event>>();
-
-        log::debug!("Migrating {} events", new_events.len());
-        for mut event in new_events {
-            let id = event.id;
-
-            let collection = self.db.collection::<Event>("events_2");
-
-            collection
-                .insert_one(Self::fill_with_id(&collection, &mut event).await?, None)
-                .await
-                .map_err(|err| {
-                    log::error!("Error migrating event with ID {}: {:?}", id, err);
-                    err
-                })
-                .unwrap();
-            log::debug!("Migrated event with ID {} (total: {})", id, 1); // result.modified_count);
-        }
-
-        Ok(())
-    }
-
-    async fn copy<T>(&self, source: &MongoDbRepository, tablename: &str) -> Result<(), InsertError>
-    where
-        T: HasId + Send + Sync + Serialize + DeserializeOwned + Unpin + std::fmt::Debug,
-    {
-        let filter = doc! {};
-        let mut cursor = source
-            .db
-            .collection::<T>(tablename)
-            .find(filter, None)
-            .await
-            .map_err(|err| {
-                log::error!("Error reading events: {:?}", err);
-                err
-            })
-            .unwrap();
-        let mut events: Vec<T> = vec![];
-        while cursor.advance().await? {
-            events.push(cursor.deserialize_current()?);
-        }
-        for mut event in events {
-            let collection = self.db.collection::<T>(tablename);
-
-            collection
-                .insert_one(Self::fill_with_id(&collection, &mut event).await?, None)
-                .await
-                .map_err(|err| {
-                    log::error!("Error inserting event: {:?}: {:?}", event, err);
-                    err
-                })
-                .unwrap();
-        }
-        Ok(())
     }
 }
 
