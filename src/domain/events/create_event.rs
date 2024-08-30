@@ -42,7 +42,7 @@ pub enum Error {
 }
 
 pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    validate_channels_count(repo.clone(), req.channel.clone(), req.max_events).await?;
+    validate_channels_count(repo.clone(), req.channel.clone(), req.team_id.clone(), req.max_events).await?;
 
     match repo
         .clone()
@@ -104,8 +104,18 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
 async fn validate_channels_count(
     repo: Arc<dyn Repository>,
     channel: String,
+    team_id: String,
     max_events: u32,
 ) -> Result<(), Error> {
+    if let Ok(special) = dotenv::var("SPECIAL_TEAM_ID").map_err(|err| {
+        log::warn!("could not read special team id: {:?}", err);
+        err
+    }) {
+        if special == team_id {
+            log::trace!("skipping channels count validation for special team {}", team_id);
+            return Ok(());
+        }
+    }
     let count = repo.count_events(channel.clone()).await.map_err(|err| {
         log::error!("counting events for channel {} failed: {:?}", channel, err);
         Error::Unknown
