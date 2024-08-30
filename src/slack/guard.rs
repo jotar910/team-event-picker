@@ -15,7 +15,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use crate::domain::auth::verify_auth;
 use crate::domain::events::find_all_events;
-
+use crate::domain::helpers::team::is_team_special;
 use super::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -251,6 +251,17 @@ impl Guard {
                 .await;
             }
         };
+
+        if is_team_special(data.team_id.clone()) {
+            log::trace!("team {} is special", data.team_id);
+            self.headers.append(
+                "x-reached-limit",
+                "false".parse().map_err(|err| {
+                    log::error!("could not parse reached limit state: {}", err);
+                    StatusCode::INTERNAL_SERVER_ERROR
+            })?);
+            return Ok(());
+        }
 
         let reached_limit = events.len() > 0;
         if reached_limit

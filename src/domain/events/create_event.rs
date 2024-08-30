@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_trim::{string_trim, vec_string_trim};
 
 use crate::domain::entities::{Event, RepeatPeriod};
+use crate::domain::helpers::team::is_team_special;
 use crate::domain::timezone::Timezone;
 use crate::repository::errors::{FindError, InsertError};
 use crate::repository::event::Repository;
@@ -42,7 +43,13 @@ pub enum Error {
 }
 
 pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response, Error> {
-    validate_channels_count(repo.clone(), req.channel.clone(), req.team_id.clone(), req.max_events).await?;
+    validate_channels_count(
+        repo.clone(),
+        req.channel.clone(),
+        req.team_id.clone(),
+        req.max_events,
+    )
+    .await?;
 
     match repo
         .clone()
@@ -107,8 +114,11 @@ async fn validate_channels_count(
     team_id: String,
     max_events: u32,
 ) -> Result<(), Error> {
-    if is_special(team_id.clone()) {
-        log::trace!("skipping channels count validation for special team {}", team_id);
+    if is_team_special(team_id.clone()) {
+        log::trace!(
+            "skipping channels count validation for special team {}",
+            team_id
+        );
         return Ok(());
     }
     let count = repo.count_events(channel.clone()).await.map_err(|err| {
@@ -124,30 +134,4 @@ async fn validate_channels_count(
         return Err(Error::Forbidden);
     }
     Ok(())
-}
-
-fn is_special(team_id: String) -> bool {
-    std::env::var("SPECIAL_TEAM_ID")
-        .inspect_err(|err| log::warn!("could not read special team id: {:?}", err))
-        .map_or(false, |special| {
-            log::debug!("create_event: special team id: {}", special);
-            special == team_id
-        })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn is_special_true() {
-        std::env::set_var("SPECIAL_TEAM_ID", "special");
-        assert_eq!(is_special("special".to_string()), true);
-    }
-
-    #[test]
-    fn is_special_false() {
-        std::env::set_var("SPECIAL_TEAM_ID", "special");
-        assert_eq!(is_special("not_special".to_string()), false);
-    }
 }
