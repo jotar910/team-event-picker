@@ -83,12 +83,12 @@ pub async fn execute(repo: Arc<dyn Repository>, req: Request) -> Result<Response
 
     match repo.insert_event(event).await {
         Ok(Event {
-            id,
-            timestamp,
-            timezone,
-            repeat,
-            ..
-        }) => Ok(Response {
+               id,
+               timestamp,
+               timezone,
+               repeat,
+               ..
+           }) => Ok(Response {
             id,
             timestamp,
             timezone,
@@ -107,14 +107,9 @@ async fn validate_channels_count(
     team_id: String,
     max_events: u32,
 ) -> Result<(), Error> {
-    if let Ok(special) = dotenv::var("SPECIAL_TEAM_ID").map_err(|err| {
-        log::warn!("could not read special team id: {:?}", err);
-        err
-    }) {
-        if special == team_id {
-            log::trace!("skipping channels count validation for special team {}", team_id);
-            return Ok(());
-        }
+    if is_special(team_id.clone()) {
+        log::trace!("skipping channels count validation for special team {}", team_id);
+        return Ok(());
     }
     let count = repo.count_events(channel.clone()).await.map_err(|err| {
         log::error!("counting events for channel {} failed: {:?}", channel, err);
@@ -129,4 +124,30 @@ async fn validate_channels_count(
         return Err(Error::Forbidden);
     }
     Ok(())
+}
+
+fn is_special(team_id: String) -> bool {
+    std::env::var("SPECIAL_TEAM_ID")
+        .inspect_err(|err| log::warn!("could not read special team id: {:?}", err))
+        .map_or(false, |special| {
+            log::debug!("create_event: special team id: {}", special);
+            special == team_id
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_special_true() {
+        std::env::set_var("SPECIAL_TEAM_ID", "special");
+        assert_eq!(is_special("special".to_string()), true);
+    }
+
+    #[test]
+    fn is_special_false() {
+        std::env::set_var("SPECIAL_TEAM_ID", "special");
+        assert_eq!(is_special("not_special".to_string()), false);
+    }
 }
