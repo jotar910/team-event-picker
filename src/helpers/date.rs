@@ -56,3 +56,9 @@ impl Date {
             .unwrap();
     }
 }
+
+impl From<Date> for i64 {
+    fn from(date: Date) -> i64 {
+        return date.timestamp;
+    }
+}

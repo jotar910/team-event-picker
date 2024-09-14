@@ -7,13 +7,13 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.38.0", features = ["macros", "rt-multi-thread", "sync", "tracing"] }
-axum = { version = "0.6.20", features = ["macros"] }
+axum = { version = "0.6.20", features = ["headers", "macros"] }
 hyper = { version = "0.14", features = ["full"] }
 hyper-tls = "0.5.0"
 
 # Axum builds on the types in Tower
 tower = "0.4.13"
-tower-http = { version = "0.3.5", features = ["trace"] }
+tower-http = { version = "0.5.2", features = ["fs", "trace"] }
 
 clap = { version = "4.5.7", features = ["derive", "env"] }
 serde = { version = "1.0.203", features = ["derive"] }
@@ -47,4 +47,7 @@ reqwest = "0.10.10"
 slack_api = "0.23.1"
 slack-rust = "0.0.1-alpha"
 tracing-subscriber = "0.3.18"
-tracing = "0.1.40"
+
+# Auth dependencies
+jsonwebtoken = "9.3.0"
+once_cell = "1.19.0"

@@ -6,6 +6,7 @@ mod actions;
 mod commands;
 mod guard;
 mod oauth;
+mod routes;
 mod sender;
 mod server;
 
