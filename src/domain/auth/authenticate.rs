@@ -166,8 +166,11 @@ pub async fn execute(
 
     Ok(OAuthResponse {
         team_id: response.team_id.clone(),
-        access_token: response.access_token,
-        jwt_access_token: generate_jwt_token(response.team_id),
+        access_token: response.access_token.clone(),
+        jwt_access_token: generate_jwt_token(
+            response.team_id,
+            response.access_token,
+        ),
         jwt_refresh_token: "jwt_refresh".to_string(),
     })
 }

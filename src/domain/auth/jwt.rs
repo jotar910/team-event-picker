@@ -18,10 +18,14 @@ use serde_json::json;
 
 use crate::helpers::date::Date;
 
-pub fn generate_jwt_token(team_id: String) -> String {
+pub fn generate_jwt_token(
+    team_id: String,
+    access_token: String,
+) -> String {
     let exp = Date::new(Date::now().timestamp() + 24 * 60 * 60).into();
     let claims = Claims {
         team_id,
+        access_token,
         exp
     };
     // Create the authorization token
@@ -35,8 +39,9 @@ pub fn generate_jwt_token(team_id: String) -> String {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    team_id: String,
-    exp: i64,
+    pub team_id: String,
+    pub access_token: String,
+    pub exp: i64,
 }
 
 #[async_trait]
@@ -131,7 +136,10 @@ mod tests {
 
     #[test]
     fn generate_token_example() {
-        let token = generate_jwt_token("team_id".to_string());
+        let token = generate_jwt_token(
+            "team_id".to_string(),
+            "token".to_string(),
+        );
         println!("token: {}", token)
     }
 }
