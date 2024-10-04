@@ -3,10 +3,11 @@ mod state;
 pub mod templates; // <--- Temporarily public
 
 mod actions;
+mod api;
+mod client;
 mod commands;
 mod guard;
 mod oauth;
-mod routes;
 mod sender;
 mod server;
 

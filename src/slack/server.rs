@@ -13,6 +13,7 @@ use crate::{
     slack::{sender, state::AppConfigs},
 };
 use crate::domain::auth;
+use crate::slack::api::routes;
 
 pub async fn serve(config: Config) -> Result<()> {
     let slack_app = Router::new()
@@ -23,7 +24,8 @@ pub async fn serve(config: Config) -> Result<()> {
         .route("/api/actions", post(super::actions::execute))
         .route_layer(middleware::from_fn(super::guard::validate));
     let rest_app = Router::new()
-        .route("/api/test", get(auth::jwt::test))
+        .route("/api/v1/channels", get(routes::search_channels))
+        .route("/api/v1/events", get(routes::search_events))
         .route_layer(middleware::from_fn(auth::jwt::middleware));
     let app = Router::new()
         .merge(slack_app)

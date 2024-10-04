@@ -75,10 +75,6 @@ where
     }
 }
 
-pub async fn test() -> String {
-    return "Hello, World!".to_string();
-}
-
 pub async fn middleware<B>(claims: Claims, request: Request<B>, next: Next<B>) -> Response {
     log::trace!("authenticated with claims: {:?}", claims);
 
