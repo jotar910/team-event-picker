@@ -221,9 +221,8 @@ impl Guard {
 
         let events = match find_all_events::execute(
             self.state.event_repo.clone(),
-            find_all_events::Request {
-                channel: data.channel_id.clone(),
-            },
+            find_all_events::Request::new()
+                .with_channel(data.channel_id.clone()),
         )
         .await
         {

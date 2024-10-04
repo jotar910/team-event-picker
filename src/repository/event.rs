@@ -11,7 +11,7 @@ use crate::repository::errors::{
 pub trait Repository: Send + Sync {
     async fn find_event(&self, id: u32, channel: String) -> Result<Event, FindError>;
     async fn find_event_by_name(&self, name: String, channel: String) -> Result<Event, FindError>;
-    async fn find_all_events(&self, channel: String) -> Result<Vec<Event>, FindAllError>;
+    async fn find_all_events(&self, channels: Vec<String>) -> Result<Vec<Event>, FindAllError>;
     async fn find_all_events_unprotected(&self) -> Result<Vec<Event>, FindAllError>;
     async fn find_all_events_by_id_unprotected(
         &self,
@@ -120,8 +120,8 @@ impl Repository for MongoDbRepository {
         }
     }
 
-    async fn find_all_events(&self, channel: String) -> Result<Vec<Event>, FindAllError> {
-        let filter = doc! { "channel": channel, "deleted": false };
+    async fn find_all_events(&self, channels: Vec<String>) -> Result<Vec<Event>, FindAllError> {
+        let filter = doc! { "channel": { "$in": channels }, "deleted": false };
         let mut cursor = self
             .db
             .collection::<Event>("events")

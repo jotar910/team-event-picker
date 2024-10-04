@@ -9,13 +9,28 @@ use crate::repository::errors::FindAllError;
 use crate::repository::event::Repository;
 
 pub struct Request {
-    pub channel: String,
+    pub channels: Vec<String>,
+}
+
+impl Request {
+    pub fn new() -> Self {
+        Self { channels: vec![] }
+    }
+
+    pub fn with_channel(self, channel: String) -> Self {
+        Self { channels: vec![channel], ..self }
+    }
+
+    pub fn with_channels(self, channels: Vec<String>) -> Self {
+        Self { channels, ..self }
+    }
 }
 
 #[derive(Serialize, Debug, PartialEq)]
 pub struct Response {
     pub id: u32,
     pub name: String,
+    pub channel: String,
     pub timestamp: i64,
     pub timezone: Timezone,
     pub repeat: RepeatPeriod,
@@ -31,7 +46,7 @@ pub async fn execute(
     repo: Arc<dyn Repository>,
     req: Request,
 ) -> Result<ListResponse<Response>, Error> {
-    let events = match repo.find_all_events(req.channel).await {
+    let events = match repo.find_all_events(req.channels).await {
         Err(err) => {
             return match err {
                 FindAllError::Unknown => Err(Error::Unknown),
@@ -45,6 +60,7 @@ pub async fn execute(
             .map(|event| Response {
                 id: event.id,
                 name: event.name,
+                channel: event.channel,
                 timestamp: event.timestamp,
                 timezone: event.timezone,
                 repeat: event.repeat,

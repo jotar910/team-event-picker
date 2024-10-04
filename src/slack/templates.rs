@@ -157,7 +157,7 @@ async fn select_event(
     channel: String,
     filename: &str,
 ) -> Result<String, Error> {
-    let events = find_all_events::execute(repo.clone(), find_all_events::Request { channel })
+    let events = find_all_events::execute(repo.clone(), find_all_events::Request::new().with_channel(channel))
         .await?
         .data;
 

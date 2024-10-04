@@ -21,7 +21,7 @@ pub async fn execute(
     channel: String,
     reached_limit: bool,
 ) -> Result<serde_json::Value, hyper::StatusCode> {
-    let result = match find_all_events::execute(repo, find_all_events::Request { channel }).await {
+    let result = match find_all_events::execute(repo, find_all_events::Request::new().with_channel(channel)).await {
         Ok(response) => response.data,
         Err(err) => {
             return Err(match err {
